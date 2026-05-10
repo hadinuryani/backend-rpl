@@ -1,0 +1,76 @@
+package config
+
+import (
+	"log"
+	"os"
+	"strconv"
+	"strings"
+	"sync"
+
+	"github.com/joho/godotenv"
+)
+
+// Config holds all configuration values loaded from environment variables.
+type Config struct {
+	AppPort  string
+	AppEnv   string
+
+	DatabaseURL string
+
+	JWTSecret      string
+	JWTExpireHours int
+
+	WAGatewayURL string
+	WAAPIToken   string
+
+	AllowedOrigins []string
+}
+
+var (
+	config *Config
+	once   sync.Once
+)
+
+// GetConfig returns the singleton Config instance, loading from .env on first call.
+func GetConfig() *Config {
+	once.Do(func() {
+		err := godotenv.Load()
+		if err != nil {
+			log.Println("Warning: .env file not found, using system environment variables")
+		}
+
+		expireHours, err := strconv.Atoi(getEnv("JWT_EXPIRE_HOURS", "24"))
+		if err != nil {
+			expireHours = 24
+		}
+
+		origins := strings.Split(getEnv("ALLOWED_ORIGINS", "http://localhost:5173,http://localhost:3000"), ",")
+		for i := range origins {
+			origins[i] = strings.TrimSpace(origins[i])
+		}
+
+		config = &Config{
+			AppPort:  getEnv("APP_PORT", "8080"),
+			AppEnv:   getEnv("APP_ENV", "development"),
+
+			DatabaseURL: getEnv("DATABASE_URL", "root:@tcp(localhost:3306)/klinik_ic?parseTime=true&loc=Local"),
+
+			JWTSecret:      getEnv("JWT_SECRET", "default-secret-change-me"),
+			JWTExpireHours: expireHours,
+
+			WAGatewayURL: getEnv("WA_GATEWAY_URL", "https://api.fonnte.com/send"),
+			WAAPIToken:   getEnv("WA_API_TOKEN", ""),
+
+			AllowedOrigins: origins,
+		}
+	})
+
+	return config
+}
+
+func getEnv(key, fallback string) string {
+	if value, exists := os.LookupEnv(key); exists {
+		return value
+	}
+	return fallback
+}

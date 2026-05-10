@@ -1,0 +1,14 @@
+package models
+
+import "time"
+
+// Obat represents the obat (medicine master data) table.
+type Obat struct {
+	ID          int       `json:"id"`
+	NamaObat    string    `json:"nama_obat"`
+	Kategori    *string   `json:"kategori"`
+	Satuan      string    `json:"satuan"`
+	StokMinimum int       `json:"stok_minimum"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}

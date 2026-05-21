@@ -39,7 +39,7 @@ func (h *DashboardHandler) GetStats(c *gin.Context) {
 		"total_pasien_hari_ini": total,
 		"antrian_menunggu":      waiting,
 		"antrian_selesai":       done,
-		"stok_kritis":           critical,
+		"stok_obat_kritis":      critical,
 		"klinik_status":         klinikStatus,
 	})
 }

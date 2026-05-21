@@ -37,7 +37,7 @@ func (h *MonitorHandler) GetVisitHistory(c *gin.Context) {
 		from, to, search, search, search).Scan(&total)
 
 	rows, err := h.db.QueryContext(c.Request.Context(),
-		`SELECT a.id, a.no_antrian, p.nama_lengkap, a.tanggal_kunjungan, a.keluhan, a.status
+		`SELECT a.id, a.pasien_id, a.no_antrian, p.nama_lengkap, a.tanggal_kunjungan, a.keluhan, a.status
 		 FROM antrian a JOIN pasien p ON p.id=a.pasien_id
 		 WHERE a.tanggal_kunjungan BETWEEN ? AND ?
 		 AND (?='' OR p.nama_lengkap LIKE CONCAT('%', ?, '%') OR a.keluhan LIKE CONCAT('%', ?, '%'))
@@ -49,21 +49,23 @@ func (h *MonitorHandler) GetVisitHistory(c *gin.Context) {
 
 	type Visit struct {
 		ID        int    `json:"id"`
+		PasienID  int    `json:"pasien_id"`
 		NoAntrian string `json:"no_antrian"`
 		Nama      string `json:"nama_pasien"`
-		Tanggal   string `json:"tanggal_kunjungan"`
+		Tanggal   string `json:"tanggal_daftar"`
 		Keluhan   string `json:"keluhan"`
 		Status    string `json:"status"`
 	}
 	var list []Visit
 	for rows.Next() {
 		v := Visit{}
-		var tgl []byte
-		rows.Scan(&v.ID, &v.NoAntrian, &v.Nama, &tgl, &v.Keluhan, &v.Status)
-		if len(tgl) > 0 {
-			parsed, _ := time.Parse("2006-01-02", string(tgl))
-			v.Tanggal = parsed.Format("2006-01-02")
+		var tgl time.Time
+		err := rows.Scan(&v.ID, &v.PasienID, &v.NoAntrian, &v.Nama, &tgl, &v.Keluhan, &v.Status)
+		if err != nil {
+			utils.InternalError(c, "Gagal memproses data")
+			return
 		}
+		v.Tanggal = tgl.Format("2006-01-02")
 		list = append(list, v)
 	}
 	utils.PaginatedResponse(c, "Berhasil", list, utils.BuildMeta(total, p))

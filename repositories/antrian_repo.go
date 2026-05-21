@@ -17,9 +17,9 @@ func NewAntrianRepository(db *sql.DB) *AntrianRepository {
 	return &AntrianRepository{db: db}
 }
 
-func (r *AntrianRepository) CountToday(ctx context.Context, date time.Time) (int, error) {
+func (r *AntrianRepository) CountToday(ctx context.Context, dateStr string) (int, error) {
 	var count int
-	err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM antrian WHERE tanggal_kunjungan = ?`, date).Scan(&count)
+	err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM antrian WHERE tanggal_kunjungan = ?`, dateStr).Scan(&count)
 	if err != nil {
 		return 0, fmt.Errorf("count today antrian: %w", err)
 	}
@@ -58,16 +58,9 @@ func (r *AntrianRepository) FindByPasienID(ctx context.Context, pasienID, limit,
 	var list []models.Antrian
 	for rows.Next() {
 		a := models.Antrian{}
-		// Scan directly. In MySQL DATE driver returns time.Time or []byte. Driver parses dates automatically due to parseTime=true.
-		var tgl []byte
+		var tgl time.Time
 		rows.Scan(&a.ID, &a.PasienID, &tgl, &a.NoAntrian, &a.Keluhan, &a.Status, &a.CreatedAt, &a.UpdatedAt)
-		
-		// Workaround if DATE returns byte slice instead of time.Time
-		if len(tgl) > 0 {
-			parsed, _ := time.Parse("2006-01-02", string(tgl))
-			a.TanggalKunjungan = models.DateOnly{Time: parsed}
-		}
-
+		a.TanggalKunjungan = models.DateOnly{Time: tgl}
 		list = append(list, a)
 	}
 	return list, total, nil
@@ -75,7 +68,7 @@ func (r *AntrianRepository) FindByPasienID(ctx context.Context, pasienID, limit,
 
 func (r *AntrianRepository) FindByID(ctx context.Context, id int) (*models.Antrian, error) {
 	a := &models.Antrian{}
-	var tgl []byte
+	var tgl time.Time
 	err := r.db.QueryRowContext(ctx,
 		`SELECT a.id, a.pasien_id, a.tanggal_kunjungan, a.no_antrian, a.keluhan, a.status, a.created_at, a.updated_at, p.nama_lengkap
 		 FROM antrian a JOIN pasien p ON p.id=a.pasien_id WHERE a.id=?`, id,
@@ -87,10 +80,7 @@ func (r *AntrianRepository) FindByID(ctx context.Context, id int) (*models.Antri
 		}
 		return nil, err
 	}
-	if len(tgl) > 0 {
-		parsed, _ := time.Parse("2006-01-02", string(tgl))
-		a.TanggalKunjungan = models.DateOnly{Time: parsed}
-	}
+	a.TanggalKunjungan = models.DateOnly{Time: tgl}
 	return a, nil
 }
 
@@ -127,12 +117,9 @@ func (r *AntrianRepository) FindByDateAndStatus(ctx context.Context, dateStr str
 	var list []models.Antrian
 	for rows.Next() {
 		a := models.Antrian{}
-		var tgl []byte
+		var tgl time.Time
 		rows.Scan(&a.ID, &a.PasienID, &tgl, &a.NoAntrian, &a.Keluhan, &a.Status, &a.CreatedAt, &a.UpdatedAt, &a.NamaPasien, &a.Umur)
-		if len(tgl) > 0 {
-			parsed, _ := time.Parse("2006-01-02", string(tgl))
-			a.TanggalKunjungan = models.DateOnly{Time: parsed}
-		}
+		a.TanggalKunjungan = models.DateOnly{Time: tgl}
 		list = append(list, a)
 	}
 	return list, total, nil

@@ -32,7 +32,7 @@ func (r *JadwalRepository) Create(ctx context.Context, pasienID, bidanID int, ta
 	}
 
 	jk := &models.JadwalKontrol{}
-	var tgl []byte
+	var tgl time.Time
 	err = r.db.QueryRowContext(ctx,
 		`SELECT id, pasien_id, bidan_id, tanggal_kontrol, catatan, status_notifikasi, created_at, updated_at
 		 FROM jadwal_kontrol WHERE id=?`, id,
@@ -40,10 +40,7 @@ func (r *JadwalRepository) Create(ctx context.Context, pasienID, bidanID int, ta
 	if err != nil {
 		return nil, err
 	}
-	if len(tgl) > 0 {
-		parsed, _ := time.Parse("2006-01-02", string(tgl))
-		jk.TanggalKontrol = parsed
-	}
+	jk.TanggalKontrol = tgl
 	return jk, nil
 }
 
@@ -70,15 +67,12 @@ func (r *JadwalRepository) FindAll(ctx context.Context, limit, offset int) ([]mo
 	var list []models.JadwalKontrol
 	for rows.Next() {
 		jk := models.JadwalKontrol{}
-		var tgl []byte
+		var tgl time.Time
 		err := rows.Scan(&jk.ID, &jk.PasienID, &jk.BidanID, &tgl, &jk.Catatan, &jk.StatusNotifikasi, &jk.CreatedAt, &jk.UpdatedAt, &jk.NamaPasien)
 		if err != nil {
 			return nil, 0, err
 		}
-		if len(tgl) > 0 {
-			parsed, _ := time.Parse("2006-01-02", string(tgl))
-			jk.TanggalKontrol = parsed
-		}
+		jk.TanggalKontrol = tgl
 		list = append(list, jk)
 	}
 	return list, total, nil
@@ -104,15 +98,12 @@ func (r *JadwalRepository) FindByPasienID(ctx context.Context, pasienID, limit, 
 	var list []models.JadwalKontrol
 	for rows.Next() {
 		jk := models.JadwalKontrol{}
-		var tgl []byte
+		var tgl time.Time
 		err := rows.Scan(&jk.ID, &jk.PasienID, &jk.BidanID, &tgl, &jk.Catatan, &jk.StatusNotifikasi, &jk.CreatedAt, &jk.UpdatedAt)
 		if err != nil {
 			return nil, 0, err
 		}
-		if len(tgl) > 0 {
-			parsed, _ := time.Parse("2006-01-02", string(tgl))
-			jk.TanggalKontrol = parsed
-		}
+		jk.TanggalKontrol = tgl
 		list = append(list, jk)
 	}
 	return list, total, nil
@@ -134,15 +125,12 @@ func (r *JadwalRepository) FindUpcomingForNotification(ctx context.Context, targ
 	var list []models.JadwalKontrol
 	for rows.Next() {
 		jk := models.JadwalKontrol{}
-		var tgl []byte
+		var tgl time.Time
 		err := rows.Scan(&jk.ID, &jk.PasienID, &jk.BidanID, &tgl, &jk.Catatan, &jk.StatusNotifikasi, &jk.CreatedAt, &jk.UpdatedAt, &jk.NamaPasien, &jk.NoWaPasien)
 		if err != nil {
 			return nil, err
 		}
-		if len(tgl) > 0 {
-			parsed, _ := time.Parse("2006-01-02", string(tgl))
-			jk.TanggalKontrol = parsed
-		}
+		jk.TanggalKontrol = tgl
 		list = append(list, jk)
 	}
 	return list, nil

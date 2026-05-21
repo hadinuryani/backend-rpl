@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"time"
 
 	"ic-plus-backend/dto"
 	"ic-plus-backend/repositories"
@@ -64,6 +65,34 @@ func (s *RekamMedisService) CreateWithResep(ctx context.Context, bidanID int, re
 	err = s.antrianRepo.UpdateStatusTx(ctx, tx, req.AntrianID, "selesai")
 	if err != nil {
 		return 0, 0, err
+	}
+
+	// Auto-create control schedule if requested
+	if req.PerluKontrol && req.TanggalKontrol != "" {
+		tanggalKontrol, err := time.Parse("2006-01-02", req.TanggalKontrol)
+		if err != nil {
+			return 0, 0, fmt.Errorf("format tanggal kontrol tidak valid")
+		}
+		
+		// Get pasien_id from antrian
+		var pasienID int
+		err = tx.QueryRowContext(ctx, `SELECT pasien_id FROM antrian WHERE id=?`, req.AntrianID).Scan(&pasienID)
+		if err != nil {
+			return 0, 0, fmt.Errorf("get pasien_id from antrian: %w", err)
+		}
+
+		var catatanKontrol *string
+		if req.CatatanKontrol != "" {
+			catatanKontrol = &req.CatatanKontrol
+		}
+		
+		_, err = tx.ExecContext(ctx,
+			`INSERT INTO jadwal_kontrol (pasien_id, bidan_id, tanggal_kontrol, catatan) VALUES (?, ?, ?, ?)`,
+			pasienID, bidanID, tanggalKontrol, catatanKontrol,
+		)
+		if err != nil {
+			return 0, 0, fmt.Errorf("create jadwal kontrol: %w", err)
+		}
 	}
 
 	if err := tx.Commit(); err != nil {

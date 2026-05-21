@@ -10,10 +10,13 @@ type CreateObatRequest struct {
 
 // UpdateObatRequest is the request body for updating a medicine.
 type UpdateObatRequest struct {
-	NamaObat    string `json:"nama_obat" validate:"omitempty"`
-	Kategori    string `json:"kategori" validate:"omitempty"`
-	Satuan      string `json:"satuan" validate:"omitempty"`
-	StokMinimum *int   `json:"stok_minimum" validate:"omitempty,gte=0"`
+	NamaObat          string `json:"nama_obat" validate:"omitempty"`
+	Kategori          string `json:"kategori" validate:"omitempty"`
+	Satuan            string `json:"satuan" validate:"omitempty"`
+	StokMinimum       *int   `json:"stok_minimum" validate:"omitempty,gte=0"`
+	BatasStokKritis   *int   `json:"batas_stok_kritis" validate:"omitempty,gte=0"`
+	JumlahStok        *int   `json:"jumlah_stok" validate:"omitempty,gte=0"`
+	TanggalKadaluarsa string `json:"tanggal_kadaluarsa" validate:"omitempty"`
 }
 
 // StokMasukRequest is the request body for adding incoming stock.
@@ -38,6 +41,7 @@ type CreateObatWithInventoriRequest struct {
 	Kategori          string `json:"kategori" validate:"omitempty"`
 	Satuan            string `json:"satuan" validate:"required"`
 	StokMinimum       int    `json:"stok_minimum" validate:"omitempty,gte=0"`
+	BatasStokKritis   int    `json:"batas_stok_kritis" validate:"omitempty,gte=0"`
 	JumlahStok        int    `json:"jumlah_stok" validate:"omitempty,gte=0"`
 	TanggalKadaluarsa string `json:"tanggal_kadaluarsa" validate:"omitempty"`
 	BatchNumber       string `json:"batch_number" validate:"omitempty"`

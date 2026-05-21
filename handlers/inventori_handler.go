@@ -36,12 +36,17 @@ func (h *InventoriHandler) CreateObat(c *gin.Context) {
 	if err := c.ShouldBindJSON(&req); err != nil { utils.BadRequest(c, "Data tidak valid"); return }
 	if err := h.validate.Struct(req); err != nil { utils.ValidationErrorResponse(c, "Validasi gagal", err.Error()); return }
 
-	stokMin := req.StokMinimum
+	stokMin := req.BatasStokKritis
+	if stokMin == 0 { stokMin = req.StokMinimum }
 	if stokMin == 0 { stokMin = 10 }
 
 	var tglKadaluarsa *time.Time
 	if req.TanggalKadaluarsa != "" {
-		t, err := time.Parse("2006-01-02", req.TanggalKadaluarsa)
+		dateStr := req.TanggalKadaluarsa
+		if len(dateStr) > 10 {
+			dateStr = dateStr[:10]
+		}
+		t, err := time.Parse("2006-01-02", dateStr)
 		if err != nil { utils.BadRequest(c, "Format tanggal kadaluarsa tidak valid"); return }
 		tglKadaluarsa = &t
 	}
@@ -57,7 +62,22 @@ func (h *InventoriHandler) UpdateObat(c *gin.Context) {
 	id := parseID(c, "id"); if id == 0 { return }
 	var req dto.UpdateObatRequest
 	if err := c.ShouldBindJSON(&req); err != nil { utils.BadRequest(c, "Data tidak valid"); return }
-	if err := h.repo.UpdateObat(c.Request.Context(), id, req.NamaObat, req.Kategori, req.Satuan, req.StokMinimum); err != nil {
+
+	stokMin := req.BatasStokKritis
+	if stokMin == nil { stokMin = req.StokMinimum }
+
+	var tglKadaluarsa *time.Time
+	if req.TanggalKadaluarsa != "" {
+		dateStr := req.TanggalKadaluarsa
+		if len(dateStr) > 10 {
+			dateStr = dateStr[:10]
+		}
+		t, err := time.Parse("2006-01-02", dateStr)
+		if err != nil { utils.BadRequest(c, "Format tanggal kadaluarsa tidak valid"); return }
+		tglKadaluarsa = &t
+	}
+
+	if err := h.repo.UpdateObat(c.Request.Context(), id, req.NamaObat, req.Kategori, req.Satuan, stokMin, req.JumlahStok, tglKadaluarsa); err != nil {
 		utils.InternalError(c, "Gagal memperbarui"); return
 	}
 	utils.SuccessResponse(c, "Obat berhasil diperbarui", nil)

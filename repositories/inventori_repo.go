@@ -86,7 +86,11 @@ func (r *InventoriRepository) FindAllObat(ctx context.Context, limit, offset int
 	r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM obat`).Scan(&total)
 
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT id, nama_obat, kategori, satuan, stok_minimum, created_at, updated_at FROM obat ORDER BY nama_obat ASC LIMIT ? OFFSET ?`, limit, offset)
+		`SELECT o.id, o.nama_obat, o.kategori, o.satuan, o.stok_minimum, o.created_at, o.updated_at,
+		        COALESCE(i.jumlah_stok, 0) as jumlah_stok, i.tanggal_kadaluarsa
+		 FROM obat o
+		 LEFT JOIN inventori i ON i.obat_id = o.id
+		 ORDER BY o.nama_obat ASC LIMIT ? OFFSET ?`, limit, offset)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -95,17 +99,83 @@ func (r *InventoriRepository) FindAllObat(ctx context.Context, limit, offset int
 	var list []models.Obat
 	for rows.Next() {
 		o := models.Obat{}
-		rows.Scan(&o.ID, &o.NamaObat, &o.Kategori, &o.Satuan, &o.StokMinimum, &o.CreatedAt, &o.UpdatedAt)
+		var tgl sql.NullTime
+		rows.Scan(&o.ID, &o.NamaObat, &o.Kategori, &o.Satuan, &o.StokMinimum, &o.CreatedAt, &o.UpdatedAt, &o.JumlahStok, &tgl)
+		if tgl.Valid {
+			o.TanggalKadaluarsa = &tgl.Time
+		}
+		o.BatasStokKritis = o.StokMinimum
 		list = append(list, o)
 	}
 	return list, total, nil
 }
 
-func (r *InventoriRepository) UpdateObat(ctx context.Context, id int, nama, kategori, satuan string, stokMin *int) error {
-	_, err := r.db.ExecContext(ctx,
+func (r *InventoriRepository) UpdateObat(ctx context.Context, id int, nama, kategori, satuan string, stokMin *int, jumlahStok *int, tglKadaluarsa *time.Time) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	_, err = tx.ExecContext(ctx,
 		`UPDATE obat SET nama_obat=?, kategori=?, satuan=?, stok_minimum=COALESCE(?, stok_minimum) WHERE id=?`,
 		nama, kategori, satuan, stokMin, id)
-	return err
+	if err != nil {
+		return err
+	}
+
+	if jumlahStok != nil || tglKadaluarsa != nil {
+		var exists int
+		tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM inventori WHERE obat_id = ?`, id).Scan(&exists)
+		if exists == 0 {
+			stokVal := 0
+			if jumlahStok != nil {
+				stokVal = *jumlahStok
+			}
+			stokMinVal := 10
+			if stokMin != nil {
+				stokMinVal = *stokMin
+			}
+			statusStok := calculateStatusStok(stokVal, stokMinVal, tglKadaluarsa)
+			_, err = tx.ExecContext(ctx,
+				`INSERT INTO inventori (obat_id, jumlah_stok, tanggal_kadaluarsa, status_stok) VALUES (?,?,?,?)`,
+				id, stokVal, tglKadaluarsa, statusStok)
+		} else {
+			var currentStok, currentStokMin int
+			var currentTgl []byte
+			tx.QueryRowContext(ctx, `SELECT jumlah_stok, tanggal_kadaluarsa FROM inventori WHERE obat_id = ?`, id).Scan(&currentStok, &currentTgl)
+			tx.QueryRowContext(ctx, `SELECT stok_minimum FROM obat WHERE id = ?`, id).Scan(&currentStokMin)
+
+			newStok := currentStok
+			if jumlahStok != nil {
+				newStok = *jumlahStok
+			}
+
+			var newTgl *time.Time
+			if len(currentTgl) > 0 {
+				parsed, _ := time.Parse("2006-01-02", string(currentTgl))
+				newTgl = &parsed
+			}
+			if tglKadaluarsa != nil {
+				newTgl = tglKadaluarsa
+			}
+
+			newStokMin := currentStokMin
+			if stokMin != nil {
+				newStokMin = *stokMin
+			}
+
+			statusStok := calculateStatusStok(newStok, newStokMin, newTgl)
+			_, err = tx.ExecContext(ctx,
+				`UPDATE inventori SET jumlah_stok = ?, tanggal_kadaluarsa = ?, status_stok = ? WHERE obat_id = ?`,
+				newStok, newTgl, statusStok, id)
+		}
+		if err != nil {
+			return err
+		}
+	}
+
+	return tx.Commit()
 }
 
 func (r *InventoriRepository) DeleteObat(ctx context.Context, id int) error {

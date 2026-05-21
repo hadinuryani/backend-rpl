@@ -38,7 +38,7 @@ func (s *AntrianService) CreateAntrian(ctx context.Context, pasienID int, tangga
 		return nil, fmt.Errorf("format tanggal tidak valid (gunakan YYYY-MM-DD)")
 	}
 
-	count, err := s.antrianRepo.CountToday(ctx, tanggal)
+	count, err := s.antrianRepo.CountToday(ctx, tanggalStr)
 	if err != nil {
 		return nil, err
 	}

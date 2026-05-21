@@ -92,6 +92,24 @@ func main() {
 		c.JSON(http.StatusOK, gin.H{"status": "ok", "time": time.Now().Format(time.RFC3339)})
 	})
 
+	// Test WhatsApp sending endpoint
+	r.POST("/api/v1/test-wa", func(c *gin.Context) {
+		var req struct {
+			Target  string `json:"target" binding:"required"`
+			Message string `json:"message" binding:"required"`
+		}
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Target dan message wajib diisi"})
+			return
+		}
+		err := waGateway.SendMessage(req.Target, req.Message)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"status": "success", "message": "WhatsApp berhasil dikirim!"})
+	})
+
 	// 9. Start scheduler
 	scheduler.Start()
 	defer scheduler.Stop()

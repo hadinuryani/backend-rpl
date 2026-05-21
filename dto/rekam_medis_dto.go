@@ -11,6 +11,9 @@ type CreateRekamMedisRequest struct {
 	KondisiJanin      string           `json:"kondisi_janin" validate:"omitempty"`
 	CatatanTambahan   string           `json:"catatan_tambahan" validate:"omitempty"`
 	Resep             []DetailResepDTO `json:"resep" validate:"required,min=1,dive"`
+	PerluKontrol      bool             `json:"perlu_kontrol"`
+	TanggalKontrol    string           `json:"tanggal_kontrol" validate:"omitempty"`
+	CatatanKontrol    string           `json:"catatan_kontrol" validate:"omitempty"`
 }
 
 // DetailResepDTO represents a single prescription line item in the request.

@@ -21,9 +21,10 @@ func NewDashboardHandler(ar *repositories.AntrianRepository, ir *repositories.In
 }
 
 func (h *DashboardHandler) GetStats(c *gin.Context) {
-	today := time.Now().Truncate(24 * time.Hour)
+	loc, _ := time.LoadLocation("Asia/Jakarta")
+	todayStr := time.Now().In(loc).Format("2006-01-02")
 
-	total, waiting, done, err := h.antrianRepo.GetDashboardStats(c.Request.Context(), today)
+	total, waiting, done, err := h.antrianRepo.GetDashboardStats(c.Request.Context(), todayStr)
 	if err != nil { utils.InternalError(c, "Gagal mengambil statistik"); return }
 
 	critical, _ := h.invRepo.CountCritical(c.Request.Context())

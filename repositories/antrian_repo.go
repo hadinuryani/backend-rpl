@@ -65,7 +65,7 @@ func (r *AntrianRepository) FindByPasienID(ctx context.Context, pasienID, limit,
 		// Workaround if DATE returns byte slice instead of time.Time
 		if len(tgl) > 0 {
 			parsed, _ := time.Parse("2006-01-02", string(tgl))
-			a.TanggalKunjungan = parsed
+			a.TanggalKunjungan = models.DateOnly{Time: parsed}
 		}
 
 		list = append(list, a)
@@ -89,17 +89,17 @@ func (r *AntrianRepository) FindByID(ctx context.Context, id int) (*models.Antri
 	}
 	if len(tgl) > 0 {
 		parsed, _ := time.Parse("2006-01-02", string(tgl))
-		a.TanggalKunjungan = parsed
+		a.TanggalKunjungan = models.DateOnly{Time: parsed}
 	}
 	return a, nil
 }
 
-func (r *AntrianRepository) FindTodayByStatus(ctx context.Context, date time.Time, status string, limit, offset int) ([]models.Antrian, int, error) {
+func (r *AntrianRepository) FindByDateAndStatus(ctx context.Context, dateStr string, status string, limit, offset int) ([]models.Antrian, int, error) {
 	var total int
 	if status != "" {
-		r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM antrian WHERE tanggal_kunjungan=? AND status=?`, date, status).Scan(&total)
+		r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM antrian WHERE tanggal_kunjungan=? AND status=?`, dateStr, status).Scan(&total)
 	} else {
-		r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM antrian WHERE tanggal_kunjungan=?`, date).Scan(&total)
+		r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM antrian WHERE tanggal_kunjungan=?`, dateStr).Scan(&total)
 	}
 
 	var query string
@@ -109,13 +109,13 @@ func (r *AntrianRepository) FindTodayByStatus(ctx context.Context, date time.Tim
 		         p.nama_lengkap, TIMESTAMPDIFF(YEAR, p.tanggal_lahir, CURDATE()) as umur
 		         FROM antrian a JOIN pasien p ON p.id=a.pasien_id
 		         WHERE a.tanggal_kunjungan=? AND a.status=? ORDER BY a.no_antrian ASC LIMIT ? OFFSET ?`
-		args = []interface{}{date, status, limit, offset}
+		args = []interface{}{dateStr, status, limit, offset}
 	} else {
 		query = `SELECT a.id, a.pasien_id, a.tanggal_kunjungan, a.no_antrian, a.keluhan, a.status, a.created_at, a.updated_at,
 		         p.nama_lengkap, TIMESTAMPDIFF(YEAR, p.tanggal_lahir, CURDATE()) as umur
 		         FROM antrian a JOIN pasien p ON p.id=a.pasien_id
 		         WHERE a.tanggal_kunjungan=? ORDER BY a.no_antrian ASC LIMIT ? OFFSET ?`
-		args = []interface{}{date, limit, offset}
+		args = []interface{}{dateStr, limit, offset}
 	}
 
 	rows, err := r.db.QueryContext(ctx, query, args...)
@@ -131,7 +131,7 @@ func (r *AntrianRepository) FindTodayByStatus(ctx context.Context, date time.Tim
 		rows.Scan(&a.ID, &a.PasienID, &tgl, &a.NoAntrian, &a.Keluhan, &a.Status, &a.CreatedAt, &a.UpdatedAt, &a.NamaPasien, &a.Umur)
 		if len(tgl) > 0 {
 			parsed, _ := time.Parse("2006-01-02", string(tgl))
-			a.TanggalKunjungan = parsed
+			a.TanggalKunjungan = models.DateOnly{Time: parsed}
 		}
 		list = append(list, a)
 	}
@@ -148,13 +148,13 @@ func (r *AntrianRepository) UpdateStatusTx(ctx context.Context, tx *sql.Tx, id i
 	return err
 }
 
-func (r *AntrianRepository) GetDashboardStats(ctx context.Context, date time.Time) (total, waiting, done int, err error) {
+func (r *AntrianRepository) GetDashboardStats(ctx context.Context, dateStr string) (total, waiting, done int, err error) {
 	err = r.db.QueryRowContext(ctx,
 		`SELECT 
 			COUNT(*), 
 			COALESCE(SUM(CASE WHEN status='menunggu' THEN 1 ELSE 0 END), 0), 
 			COALESCE(SUM(CASE WHEN status='selesai' THEN 1 ELSE 0 END), 0)
-		 FROM antrian WHERE tanggal_kunjungan=?`, date,
+		 FROM antrian WHERE tanggal_kunjungan=?`, dateStr,
 	).Scan(&total, &waiting, &done)
 	return
 }

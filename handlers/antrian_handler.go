@@ -83,12 +83,14 @@ func (h *AntrianHandler) GetAntrianDetail(c *gin.Context) {
 }
 
 // GetTodayAntrian returns today's queue list for bidan.
+// Supports optional ?tanggal=YYYY-MM-DD to query a specific date (defaults to today WIB).
 func (h *AntrianHandler) GetTodayAntrian(c *gin.Context) {
-	today := time.Now().Truncate(24 * time.Hour)
+	loc, _ := time.LoadLocation("Asia/Jakarta")
+	tanggalStr := c.DefaultQuery("tanggal", time.Now().In(loc).Format("2006-01-02"))
 	status := c.DefaultQuery("status", "")
 	p := utils.GetPaginationParams(c)
 
-	list, total, err := h.repo.FindTodayByStatus(c.Request.Context(), today, status, p.Limit, p.Offset)
+	list, total, err := h.repo.FindByDateAndStatus(c.Request.Context(), tanggalStr, status, p.Limit, p.Offset)
 	if err != nil {
 		utils.InternalError(c, "Gagal mengambil data antrian")
 		return

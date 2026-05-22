@@ -34,6 +34,42 @@ func Connect(dsn string) error {
 		return fmt.Errorf("failed to ping database: %w", err)
 	}
 
+	// Auto-create settings (pengaturan) table
+	_, err = db.Exec(`CREATE TABLE IF NOT EXISTS pengaturan (
+		kunci VARCHAR(100) PRIMARY KEY,
+		nilai VARCHAR(255) NOT NULL,
+		updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+	)`)
+	if err != nil {
+		return fmt.Errorf("failed to create settings table: %w", err)
+	}
+
+	// Seed default settings
+	settingsToSeed := map[string]string{
+		"waktu_pengingat": "08:00",
+		"nama_klinik":      "Klinik Indah Care Plus (IC+)",
+		"alamat_klinik":    "Jl. Indah Care No. 45, Jakarta",
+		"jam_kontrol":      "08:00 - selesai",
+	}
+
+	for k, v := range settingsToSeed {
+		_, err = db.Exec(`INSERT IGNORE INTO pengaturan (kunci, nilai) VALUES (?, ?)`, k, v)
+		if err != nil {
+			return fmt.Errorf("failed to seed setting %s: %w", k, err)
+		}
+	}
+
+	// Add reset_otp columns if they do not exist
+	var count int
+	_ = db.QueryRow(`SELECT COUNT(*) FROM information_schema.COLUMNS 
+		WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'reset_otp_code'`).Scan(&count)
+	if count == 0 {
+		_, err = db.Exec(`ALTER TABLE users ADD COLUMN reset_otp_code VARCHAR(6) NULL, ADD COLUMN reset_otp_expired_at DATETIME NULL`)
+		if err != nil {
+			log.Printf("Warning: failed to add reset_otp columns: %v", err)
+		}
+	}
+
 	log.Println("Database connected successfully (MySQL)")
 	return nil
 }

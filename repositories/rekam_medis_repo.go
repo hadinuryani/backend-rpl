@@ -18,8 +18,9 @@ func NewRekamMedisRepository(db *sql.DB) *RekamMedisRepository {
 }
 
 // CreateWithResepTx creates rekam medis + resep + detail_resep in a transaction.
+// Also deducts medicine stock from inventori for each prescribed item.
 // Returns the created rekam medis ID and resep ID.
-func (r *RekamMedisRepository) CreateWithResepTx(ctx context.Context, tx *sql.Tx, bidanID, antrianID int, keluhanUtama string, tekananDarah *string, beratBadan, tinggiFundus *float64, kondisiJanin, catatan *string, details []struct{ ObatID int; Dosis, AturanPakai string; Catatan *string }) (int, int, error) {
+func (r *RekamMedisRepository) CreateWithResepTx(ctx context.Context, tx *sql.Tx, bidanID, antrianID int, keluhanUtama string, tekananDarah *string, beratBadan, tinggiFundus *float64, kondisiJanin, catatan *string, details []struct{ ObatID, Jumlah int; Dosis, AturanPakai string; Catatan *string }) (int, int, error) {
 	// 1. Insert rekam_medis
 	result, err := tx.ExecContext(ctx,
 		`INSERT INTO rekam_medis (antrian_id, bidan_id, keluhan_utama, tekanan_darah, berat_badan, tinggi_fundus_uteri, kondisi_janin, catatan_tambahan)
@@ -46,16 +47,54 @@ func (r *RekamMedisRepository) CreateWithResepTx(ctx context.Context, tx *sql.Tx
 		return 0, 0, err
 	}
 
-	// 3. Insert detail_resep
+	// 3. Insert detail_resep + deduct stock
 	for _, d := range details {
+		jumlah := d.Jumlah
+		if jumlah < 1 {
+			jumlah = 1
+		}
+
 		_, err = tx.ExecContext(ctx,
-			`INSERT INTO detail_resep (resep_id, obat_id, dosis, aturan_pakai, catatan)
-			 VALUES (?,?,?,?,?)`,
-			resepID, d.ObatID, d.Dosis, d.AturanPakai, d.Catatan,
+			`INSERT INTO detail_resep (resep_id, obat_id, jumlah, dosis, aturan_pakai, catatan)
+			 VALUES (?,?,?,?,?,?)`,
+			resepID, d.ObatID, jumlah, d.Dosis, d.AturanPakai, d.Catatan,
 		)
 		if err != nil {
 			return 0, 0, fmt.Errorf("insert detail_resep: %w", err)
 		}
+
+		// 4. Deduct stock from inventori (by obat_id)
+		var inventoriID, currentStok int
+		err = tx.QueryRowContext(ctx,
+			`SELECT id, jumlah_stok FROM inventori WHERE obat_id = ? FOR UPDATE`, d.ObatID,
+		).Scan(&inventoriID, &currentStok)
+		if err != nil {
+			// No inventory record for this obat — skip deduction
+			continue
+		}
+		if currentStok < jumlah {
+			return 0, 0, fmt.Errorf("stok obat tidak mencukupi (tersedia: %d, dibutuhkan: %d)", currentStok, jumlah)
+		}
+
+		_, err = tx.ExecContext(ctx,
+			`UPDATE inventori SET jumlah_stok = jumlah_stok - ? WHERE id = ?`,
+			jumlah, inventoriID)
+		if err != nil {
+			return 0, 0, fmt.Errorf("deduct stock: %w", err)
+		}
+
+		// 5. Log stock history
+		keterangan := fmt.Sprintf("Resep pasien (antrian #%d)", antrianID)
+		_, err = tx.ExecContext(ctx,
+			`INSERT INTO riwayat_stok (inventori_id, bidan_id, jenis_transaksi, jumlah, keterangan)
+			 VALUES (?,?,'keluar',?,?)`,
+			inventoriID, bidanID, jumlah, keterangan)
+		if err != nil {
+			return 0, 0, fmt.Errorf("insert riwayat_stok: %w", err)
+		}
+
+		// 6. Recalculate stock status
+		r.recalcStatusInTx(ctx, tx, inventoriID)
 	}
 
 	return int(rmID), int(resepID), nil
@@ -144,7 +183,7 @@ func (r *RekamMedisRepository) FindResepByRekamMedisID(ctx context.Context, rmID
 	}
 
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT dr.id, dr.resep_id, dr.obat_id, dr.dosis, dr.aturan_pakai, dr.catatan, o.nama_obat
+		`SELECT dr.id, dr.resep_id, dr.obat_id, dr.jumlah, dr.dosis, dr.aturan_pakai, dr.catatan, o.nama_obat
 		 FROM detail_resep dr JOIN obat o ON o.id = dr.obat_id
 		 WHERE dr.resep_id = ?`, resep.ID,
 	)
@@ -155,11 +194,33 @@ func (r *RekamMedisRepository) FindResepByRekamMedisID(ctx context.Context, rmID
 
 	for rows.Next() {
 		d := models.DetailResep{}
-		err := rows.Scan(&d.ID, &d.ResepID, &d.ObatID, &d.Dosis, &d.AturanPakai, &d.Catatan, &d.NamaObat)
+		err := rows.Scan(&d.ID, &d.ResepID, &d.ObatID, &d.Jumlah, &d.Dosis, &d.AturanPakai, &d.Catatan, &d.NamaObat)
 		if err != nil {
 			return nil, err
 		}
 		resep.Details = append(resep.Details, d)
 	}
 	return resep, nil
+}
+
+func (r *RekamMedisRepository) recalcStatusInTx(ctx context.Context, tx *sql.Tx, inventoriID int) error {
+	var jumlahStok, stokMin int
+	var tgl []byte
+	var tanggalKadaluarsa *time.Time
+	
+	err := tx.QueryRowContext(ctx,
+		`SELECT i.jumlah_stok, o.stok_minimum, i.tanggal_kadaluarsa
+		 FROM inventori i JOIN obat o ON o.id = i.obat_id WHERE i.id = ?`, inventoriID,
+	).Scan(&jumlahStok, &stokMin, &tgl)
+	if err != nil {
+		return err
+	}
+	if len(tgl) > 0 {
+		parsed, _ := time.Parse("2006-01-02", string(tgl))
+		tanggalKadaluarsa = &parsed
+	}
+
+	status := calculateStatusStok(jumlahStok, stokMin, tanggalKadaluarsa)
+	_, err = tx.ExecContext(ctx, `UPDATE inventori SET status_stok = ? WHERE id = ?`, status, inventoriID)
+	return err
 }

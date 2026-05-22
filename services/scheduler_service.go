@@ -2,8 +2,10 @@ package services
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"log"
+	"sync"
 	"time"
 
 	"ic-plus-backend/repositories"
@@ -31,9 +33,12 @@ type SchedulerService struct {
 	notifRepo  *repositories.NotifikasiRepository
 	waGateway  WAGateway
 	cron       *cron.Cron
+	db         *sql.DB
+	mu         sync.Mutex
+	entryID    cron.EntryID
 }
 
-func NewSchedulerService(jadwalRepo *repositories.JadwalRepository, notifRepo *repositories.NotifikasiRepository, waGateway WAGateway) *SchedulerService {
+func NewSchedulerService(jadwalRepo *repositories.JadwalRepository, notifRepo *repositories.NotifikasiRepository, waGateway WAGateway, db *sql.DB) *SchedulerService {
 	// Use WIB timezone (UTC+7)
 	loc, _ := time.LoadLocation("Asia/Jakarta")
 	c := cron.New(cron.WithLocation(loc))
@@ -42,18 +47,66 @@ func NewSchedulerService(jadwalRepo *repositories.JadwalRepository, notifRepo *r
 		notifRepo:  notifRepo,
 		waGateway:  waGateway,
 		cron:       c,
+		db:         db,
 	}
 }
 
 // Start begins the cron scheduler with the H-1 notification job.
 func (s *SchedulerService) Start() {
-	// Run every day at 08:00 WIB
-	s.cron.AddFunc("0 8 * * *", func() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Read waktu_pengingat from database
+	var waktu string
+	err := s.db.QueryRow(`SELECT nilai FROM pengaturan WHERE kunci = 'waktu_pengingat'`).Scan(&waktu)
+	if err != nil || waktu == "" {
+		waktu = "08:00"
+	}
+
+	var hour, minute int
+	_, _ = fmt.Sscanf(waktu, "%d:%d", &hour, &minute)
+
+	cronExpr := fmt.Sprintf("%d %d * * *", minute, hour)
+	s.cron.Start()
+
+	id, err := s.cron.AddFunc(cronExpr, func() {
 		log.Println("Running H-1 notification job...")
 		s.runH1NotificationJob()
 	})
-	s.cron.Start()
-	log.Println(" Scheduler started (H-1 notifications at 08:00 WIB)")
+	if err == nil {
+		s.entryID = id
+		log.Printf(" Scheduler started (H-1 notifications daily at %02d:%02d WIB)", hour, minute)
+	} else {
+		log.Printf(" Failed to start scheduler: %v", err)
+	}
+}
+
+// Reschedule dynamic updates the cron schedule of the H-1 notification job.
+func (s *SchedulerService) Reschedule(timeStr string) error {
+	var hour, minute int
+	_, err := fmt.Sscanf(timeStr, "%d:%d", &hour, &minute)
+	if err != nil {
+		return fmt.Errorf("invalid time format: %w", err)
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.entryID != 0 {
+		s.cron.Remove(s.entryID)
+	}
+
+	cronExpr := fmt.Sprintf("%d %d * * *", minute, hour)
+	id, err := s.cron.AddFunc(cronExpr, func() {
+		log.Println("Running H-1 notification job...")
+		s.runH1NotificationJob()
+	})
+	if err != nil {
+		return fmt.Errorf("failed to schedule cron: %w", err)
+	}
+	s.entryID = id
+	log.Printf(" Scheduler rescheduled successfully for daily at %02d:%02d WIB (expr: %s)", hour, minute, cronExpr)
+	return nil
 }
 
 // Stop gracefully stops the cron scheduler.
@@ -78,11 +131,25 @@ func (s *SchedulerService) runH1NotificationJob() {
 		return
 	}
 
+	// Load clinic settings
+	namaKlinik := "Klinik Indah Care Plus (IC+)"
+	jamKontrol := "08:00 - selesai"
+
+	var val string
+	err = s.db.QueryRowContext(ctx, `SELECT nilai FROM pengaturan WHERE kunci = 'nama_klinik'`).Scan(&val)
+	if err == nil && val != "" {
+		namaKlinik = val
+	}
+	err = s.db.QueryRowContext(ctx, `SELECT nilai FROM pengaturan WHERE kunci = 'jam_kontrol'`).Scan(&val)
+	if err == nil && val != "" {
+		jamKontrol = val
+	}
+
 	for _, jk := range schedules {
-		tanggalStr := jk.TanggalKontrol.Format("2 January 2006")
+		tanggalStr := formatIndonesianDate(jk.TanggalKontrol)
 		message := fmt.Sprintf(
-			"Halo %s 👋\nIni adalah pengingat dari Klinik Indah Care Plus (IC+).\nBesok, %s, Anda memiliki jadwal kontrol.\nHarap segera lakukan pendaftaran kunjungan melalui sistem kami.\nSampai jumpa! 🌿",
-			jk.NamaPasien, tanggalStr,
+			"Reminder Kontrol 🏥\n\nIbu %s, jangan lupa jadwal kontrol pada:\n\n📅 %s\n⏰ %s\n\nDi %s 😊\nTerima kasih.",
+			jk.NamaPasien, tanggalStr, jamKontrol, namaKlinik,
 		)
 
 		judul := "Pengingat Jadwal Kontrol"
@@ -101,4 +168,20 @@ func (s *SchedulerService) runH1NotificationJob() {
 			s.notifRepo.Create(ctx, jk.PasienID, &jadwalID, judul, message, "terkirim", &now)
 		}
 	}
+}
+
+func formatIndonesianDate(t time.Time) string {
+	days := []string{"Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"}
+	months := []string{
+		"",
+		"Januari", "Februari", "Maret", "April", "Mei", "Juni",
+		"Juli", "Agustus", "September", "Oktober", "November", "Desember",
+	}
+
+	dayName := days[t.Weekday()]
+	dayNum := t.Day()
+	monthName := months[t.Month()]
+	year := t.Year()
+
+	return fmt.Sprintf("%s, %d %s %d", dayName, dayNum, monthName, year)
 }

@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"database/sql"
+	"fmt"
 	"ic-plus-backend/dto"
 	"ic-plus-backend/repositories"
 	"ic-plus-backend/services"
@@ -17,10 +18,11 @@ type JadwalHandler struct {
 	pasienRepo *repositories.PasienRepository
 	db         *sql.DB
 	validate   *validator.Validate
+	scheduler  *services.SchedulerService
 }
 
-func NewJadwalHandler(svc *services.JadwalService, repo *repositories.JadwalRepository, pr *repositories.PasienRepository, db *sql.DB) *JadwalHandler {
-	return &JadwalHandler{service: svc, repo: repo, pasienRepo: pr, db: db, validate: validator.New()}
+func NewJadwalHandler(svc *services.JadwalService, repo *repositories.JadwalRepository, pr *repositories.PasienRepository, db *sql.DB, scheduler *services.SchedulerService) *JadwalHandler {
+	return &JadwalHandler{service: svc, repo: repo, pasienRepo: pr, db: db, validate: validator.New(), scheduler: scheduler}
 }
 
 func (h *JadwalHandler) Create(c *gin.Context) {
@@ -69,4 +71,103 @@ func (h *JadwalHandler) GetMyJadwal(c *gin.Context) {
 	list, total, err := h.repo.FindByPasienID(c.Request.Context(), pasien.ID, p.Limit, p.Offset)
 	if err != nil { utils.InternalError(c, "Gagal mengambil data"); return }
 	utils.PaginatedResponse(c, "Berhasil", list, utils.BuildMeta(total, p))
+}
+
+func (h *JadwalHandler) GetWaktuPengingat(c *gin.Context) {
+	rows, err := h.db.QueryContext(c.Request.Context(), `SELECT kunci, nilai FROM pengaturan`)
+	if err != nil {
+		utils.InternalError(c, "Gagal mengambil pengaturan")
+		return
+	}
+	defer rows.Close()
+
+	settings := gin.H{
+		"waktu_pengingat": "08:00",
+		"nama_klinik":      "Klinik Indah Care Plus (IC+)",
+		"alamat_klinik":    "Jl. Indah Care No. 45, Jakarta",
+		"jam_kontrol":      "08:00 - selesai",
+	}
+
+	for rows.Next() {
+		var kunci, nilai string
+		if err := rows.Scan(&kunci, &nilai); err == nil {
+			settings[kunci] = nilai
+		}
+	}
+	utils.SuccessResponse(c, "Berhasil", settings)
+}
+
+func (h *JadwalHandler) UpdateWaktuPengingat(c *gin.Context) {
+	var req struct {
+		Waktu        string `json:"waktu_pengingat"`
+		NamaKlinik   string `json:"nama_klinik"`
+		AlamatKlinik string `json:"alamat_klinik"`
+		JamKontrol   string `json:"jam_kontrol"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.BadRequest(c, "Format data tidak valid")
+		return
+	}
+
+	// Update waktu_pengingat if provided
+	if req.Waktu != "" {
+		// Validate format HH:MM
+		var hour, minute int
+		_, err := fmt.Sscanf(req.Waktu, "%d:%d", &hour, &minute)
+		if err != nil || hour < 0 || hour > 23 || minute < 0 || minute > 59 {
+			utils.BadRequest(c, "Format waktu tidak valid (HH:MM)")
+			return
+		}
+		timeStr := fmt.Sprintf("%02d:%02d", hour, minute)
+		_, err = h.db.ExecContext(c.Request.Context(),
+			`INSERT INTO pengaturan (kunci, nilai) VALUES ('waktu_pengingat', ?) ON DUPLICATE KEY UPDATE nilai = ?`,
+			timeStr, timeStr,
+		)
+		if err != nil {
+			utils.InternalError(c, "Gagal menyimpan pengaturan waktu pengingat")
+			return
+		}
+		if err := h.scheduler.Reschedule(timeStr); err != nil {
+			utils.InternalError(c, "Gagal menerapkan jadwal pengingat baru")
+			return
+		}
+	}
+
+	// Update nama_klinik if provided
+	if req.NamaKlinik != "" {
+		_, err := h.db.ExecContext(c.Request.Context(),
+			`INSERT INTO pengaturan (kunci, nilai) VALUES ('nama_klinik', ?) ON DUPLICATE KEY UPDATE nilai = ?`,
+			req.NamaKlinik, req.NamaKlinik,
+		)
+		if err != nil {
+			utils.InternalError(c, "Gagal menyimpan pengaturan nama klinik")
+			return
+		}
+	}
+
+	// Update alamat_klinik if provided
+	if req.AlamatKlinik != "" {
+		_, err := h.db.ExecContext(c.Request.Context(),
+			`INSERT INTO pengaturan (kunci, nilai) VALUES ('alamat_klinik', ?) ON DUPLICATE KEY UPDATE nilai = ?`,
+			req.AlamatKlinik, req.AlamatKlinik,
+		)
+		if err != nil {
+			utils.InternalError(c, "Gagal menyimpan pengaturan alamat klinik")
+			return
+		}
+	}
+
+	// Update jam_kontrol if provided
+	if req.JamKontrol != "" {
+		_, err := h.db.ExecContext(c.Request.Context(),
+			`INSERT INTO pengaturan (kunci, nilai) VALUES ('jam_kontrol', ?) ON DUPLICATE KEY UPDATE nilai = ?`,
+			req.JamKontrol, req.JamKontrol,
+		)
+		if err != nil {
+			utils.InternalError(c, "Gagal menyimpan pengaturan jam kontrol")
+			return
+		}
+	}
+
+	utils.SuccessResponse(c, "Pengaturan berhasil diperbarui", nil)
 }

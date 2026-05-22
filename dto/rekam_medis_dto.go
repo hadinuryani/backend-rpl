@@ -19,6 +19,7 @@ type CreateRekamMedisRequest struct {
 // DetailResepDTO represents a single prescription line item in the request.
 type DetailResepDTO struct {
 	ObatID      int    `json:"obat_id" validate:"required"`
+	Jumlah      int    `json:"jumlah" validate:"required,gte=1"`
 	Dosis       string `json:"dosis" validate:"required"`
 	AturanPakai string `json:"aturan_pakai" validate:"required"`
 	Catatan     string `json:"catatan" validate:"omitempty"`

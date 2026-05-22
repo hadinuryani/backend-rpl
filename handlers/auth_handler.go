@@ -72,3 +72,41 @@ func (h *AuthHandler) GetMe(c *gin.Context) {
 	}
 	utils.SuccessResponse(c, "Berhasil", dto.UserProfileResponse{ID: user.ID, Email: user.Email, Role: user.Role, Profile: profile})
 }
+
+func (h *AuthHandler) ForgotPassword(c *gin.Context) {
+	var req struct {
+		NoWa string `json:"no_wa" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.BadRequest(c, "Nomor WhatsApp harus diisi")
+		return
+	}
+
+	err := h.service.ForgotPassword(c.Request.Context(), req.NoWa)
+	if err != nil {
+		utils.BadRequest(c, err.Error())
+		return
+	}
+
+	utils.SuccessResponse(c, "Kode OTP berhasil dikirim ke WhatsApp Anda", nil)
+}
+
+func (h *AuthHandler) ResetPassword(c *gin.Context) {
+	var req struct {
+		NoWa        string `json:"no_wa" binding:"required"`
+		OTPCode     string `json:"otp_code" binding:"required,len=6"`
+		NewPassword string `json:"new_password" binding:"required,min=6"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.BadRequest(c, "Format data tidak valid")
+		return
+	}
+
+	err := h.service.ResetPassword(c.Request.Context(), req.NoWa, req.OTPCode, req.NewPassword)
+	if err != nil {
+		utils.BadRequest(c, err.Error())
+		return
+	}
+
+	utils.SuccessResponse(c, "Password berhasil diperbarui, silakan login kembali", nil)
+}

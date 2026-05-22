@@ -29,6 +29,10 @@ type Antrian struct {
 	UpdatedAt        time.Time `json:"updated_at"`
 
 	// Joined fields (not in DB, populated by queries)
-	NamaPasien string `json:"nama_pasien,omitempty"`
-	Umur       int    `json:"umur,omitempty"`
+	NamaPasien    string `json:"nama_pasien,omitempty"`
+	Umur          int    `json:"umur,omitempty"`
+	GolonganDarah string `json:"golongan_darah,omitempty"`
+	Alamat        string `json:"alamat,omitempty"`
+	NoWa          string `json:"no_wa,omitempty"`
+	JenisKelamin  string `json:"jenis_kelamin,omitempty"`
 }

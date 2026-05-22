@@ -43,8 +43,6 @@ func main() {
 	notifRepo := repositories.NewNotifikasiRepository(db)
 	invRepo := repositories.NewInventoriRepository(db)
 
-	// 4. Initialize services
-	authService := services.NewAuthService(userRepo, pasienRepo)
 	antrianService := services.NewAntrianService(antrianRepo, db)
 	rmService := services.NewRekamMedisService(rmRepo, antrianRepo, db)
 	jadwalService := services.NewJadwalService(jadwalRepo)
@@ -61,7 +59,9 @@ func main() {
 		waGateway = &services.StubWAGateway{}
 		log.Println("📱 WhatsApp Gateway: Stub (console only — set WA_API_TOKEN to enable)")
 	}
-	scheduler := services.NewSchedulerService(jadwalRepo, notifRepo, waGateway)
+	scheduler := services.NewSchedulerService(jadwalRepo, notifRepo, waGateway, db)
+
+	authService := services.NewAuthService(userRepo, pasienRepo, waGateway)
 
 	// 6. Initialize handlers
 	authHandler := handlers.NewAuthHandler(authService)
@@ -71,7 +71,7 @@ func main() {
 	antrianHandler := handlers.NewAntrianHandler(antrianService, antrianRepo, pasienRepo)
 	rmHandler := handlers.NewRekamMedisHandler(rmService, rmRepo, pasienRepo, db)
 	resepHandler := handlers.NewResepHandler(rmRepo)
-	jadwalHandler := handlers.NewJadwalHandler(jadwalService, jadwalRepo, pasienRepo, db)
+	jadwalHandler := handlers.NewJadwalHandler(jadwalService, jadwalRepo, pasienRepo, db, scheduler)
 	notifHandler := handlers.NewNotifikasiHandler(notifRepo, pasienRepo)
 	invHandler := handlers.NewInventoriHandler(invService, invRepo, db)
 	dashHandler := handlers.NewDashboardHandler(antrianRepo, invRepo, db)

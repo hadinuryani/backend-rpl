@@ -43,6 +43,6 @@ func (s *AntrianService) CreateAntrian(ctx context.Context, pasienID int, tangga
 		return nil, err
 	}
 
-	noAntrian := utils.GenerateNoAntrian(count)
+	noAntrian := utils.GenerateNoAntrian(count, tanggal.Weekday())
 	return s.antrianRepo.Create(ctx, pasienID, tanggal, noAntrian, keluhan)
 }

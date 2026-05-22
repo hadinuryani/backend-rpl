@@ -14,4 +14,5 @@ type Pasien struct {
 	GolonganDarah  *string   `json:"golongan_darah"`
 	CreatedAt      time.Time `json:"created_at"`
 	UpdatedAt      time.Time `json:"updated_at"`
+	Umur           int       `json:"umur"`
 }

@@ -29,6 +29,8 @@ func RegisterRoutes(r *gin.Engine,
 	auth.POST("/login", authH.Login)
 	auth.POST("/logout", middleware.AuthMiddleware(), authH.Logout)
 	auth.GET("/me", middleware.AuthMiddleware(), authH.GetMe)
+	auth.POST("/forgot-password", authH.ForgotPassword)
+	auth.POST("/reset-password", authH.ResetPassword)
 
 	// === PUBLIC ===
 	api.GET("/klinik/status", klinikH.GetStatus)
@@ -75,6 +77,8 @@ func RegisterRoutes(r *gin.Engine,
 	bidan.GET("/jadwal-kontrol", jadwalH.GetAll)
 	bidan.PUT("/jadwal-kontrol/:id", jadwalH.Update)
 	bidan.DELETE("/jadwal-kontrol/:id", jadwalH.Delete)
+	bidan.GET("/jadwal-kontrol/waktu-pengingat", jadwalH.GetWaktuPengingat)
+	bidan.PUT("/jadwal-kontrol/waktu-pengingat", jadwalH.UpdateWaktuPengingat)
 
 	// Monitor Kunjungan
 	bidan.GET("/monitor-kunjungan", monitorH.GetVisitHistory)
@@ -84,6 +88,7 @@ func RegisterRoutes(r *gin.Engine,
 	bidan.GET("/pasien/:id", bidanH.GetPasienByID)
 	bidan.POST("/pasien", bidanH.CreatePasien)
 	bidan.PUT("/pasien/:id", bidanH.UpdatePasien)
+	bidan.GET("/pasien/:id/rekam-medis", rmH.GetRekamMedisByPasienID)
 
 	// Inventori Obat
 	bidan.GET("/obat", invH.GetAllObat)

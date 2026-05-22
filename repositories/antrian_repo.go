@@ -69,10 +69,13 @@ func (r *AntrianRepository) FindByPasienID(ctx context.Context, pasienID, limit,
 func (r *AntrianRepository) FindByID(ctx context.Context, id int) (*models.Antrian, error) {
 	a := &models.Antrian{}
 	var tgl time.Time
+	var golDarah, alamat, noWa, jenisKelamin sql.NullString
 	err := r.db.QueryRowContext(ctx,
-		`SELECT a.id, a.pasien_id, a.tanggal_kunjungan, a.no_antrian, a.keluhan, a.status, a.created_at, a.updated_at, p.nama_lengkap
+		`SELECT a.id, a.pasien_id, a.tanggal_kunjungan, a.no_antrian, a.keluhan, a.status, a.created_at, a.updated_at,
+		        p.nama_lengkap, p.golongan_darah, p.alamat, p.no_wa, p.jenis_kelamin, TIMESTAMPDIFF(YEAR, p.tanggal_lahir, CURDATE()) as umur
 		 FROM antrian a JOIN pasien p ON p.id=a.pasien_id WHERE a.id=?`, id,
-	).Scan(&a.ID, &a.PasienID, &tgl, &a.NoAntrian, &a.Keluhan, &a.Status, &a.CreatedAt, &a.UpdatedAt, &a.NamaPasien)
+	).Scan(&a.ID, &a.PasienID, &tgl, &a.NoAntrian, &a.Keluhan, &a.Status, &a.CreatedAt, &a.UpdatedAt,
+		&a.NamaPasien, &golDarah, &alamat, &noWa, &jenisKelamin, &a.Umur)
 	
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -81,6 +84,18 @@ func (r *AntrianRepository) FindByID(ctx context.Context, id int) (*models.Antri
 		return nil, err
 	}
 	a.TanggalKunjungan = models.DateOnly{Time: tgl}
+	if golDarah.Valid {
+		a.GolonganDarah = golDarah.String
+	}
+	if alamat.Valid {
+		a.Alamat = alamat.String
+	}
+	if noWa.Valid {
+		a.NoWa = noWa.String
+	}
+	if jenisKelamin.Valid {
+		a.JenisKelamin = jenisKelamin.String
+	}
 	return a, nil
 }
 

@@ -43,12 +43,14 @@ func (s *RekamMedisService) CreateWithResep(ctx context.Context, bidanID int, re
 
 	details := make([]struct {
 		ObatID      int
+		Jumlah      int
 		Dosis       string
 		AturanPakai string
 		Catatan     *string
 	}, len(req.Resep))
 	for i, d := range req.Resep {
 		details[i].ObatID = d.ObatID
+		details[i].Jumlah = d.Jumlah
 		details[i].Dosis = d.Dosis
 		details[i].AturanPakai = d.AturanPakai
 		if d.Catatan != "" {
@@ -82,8 +84,11 @@ func (s *RekamMedisService) CreateWithResep(ctx context.Context, bidanID int, re
 		}
 
 		var catatanKontrol *string
+		defaultCatatan := "Kontrol Rutin"
 		if req.CatatanKontrol != "" {
 			catatanKontrol = &req.CatatanKontrol
+		} else {
+			catatanKontrol = &defaultCatatan
 		}
 		
 		_, err = tx.ExecContext(ctx,

@@ -55,11 +55,12 @@ func (r *PasienRepository) CreateByBidan(ctx context.Context, tx *sql.Tx, nama s
 
 	pasien := &models.Pasien{}
 	err = tx.QueryRowContext(ctx,
-		`SELECT id, user_id, nama_lengkap, tanggal_lahir, jenis_kelamin, alamat, no_wa, golongan_darah, created_at, updated_at
+		`SELECT id, user_id, nama_lengkap, tanggal_lahir, jenis_kelamin, alamat, no_wa, golongan_darah, created_at, updated_at,
+		        TIMESTAMPDIFF(YEAR, tanggal_lahir, CURDATE()) as umur
 		 FROM pasien WHERE id = ?`,
 		id,
 	).Scan(&pasien.ID, &pasien.UserID, &pasien.NamaLengkap, &pasien.TanggalLahir, &pasien.JenisKelamin,
-		&pasien.Alamat, &pasien.NoWa, &pasien.GolonganDarah, &pasien.CreatedAt, &pasien.UpdatedAt)
+		&pasien.Alamat, &pasien.NoWa, &pasien.GolonganDarah, &pasien.CreatedAt, &pasien.UpdatedAt, &pasien.Umur)
 
 	return pasien, err
 }
@@ -68,11 +69,12 @@ func (r *PasienRepository) CreateByBidan(ctx context.Context, tx *sql.Tx, nama s
 func (r *PasienRepository) FindByUserID(ctx context.Context, userID int) (*models.Pasien, error) {
 	pasien := &models.Pasien{}
 	err := r.db.QueryRowContext(ctx,
-		`SELECT id, user_id, nama_lengkap, tanggal_lahir, jenis_kelamin, alamat, no_wa, golongan_darah, created_at, updated_at
+		`SELECT id, user_id, nama_lengkap, tanggal_lahir, jenis_kelamin, alamat, no_wa, golongan_darah, created_at, updated_at,
+		        TIMESTAMPDIFF(YEAR, tanggal_lahir, CURDATE()) as umur
 		 FROM pasien WHERE user_id = ?`,
 		userID,
 	).Scan(&pasien.ID, &pasien.UserID, &pasien.NamaLengkap, &pasien.TanggalLahir, &pasien.JenisKelamin,
-		&pasien.Alamat, &pasien.NoWa, &pasien.GolonganDarah, &pasien.CreatedAt, &pasien.UpdatedAt)
+		&pasien.Alamat, &pasien.NoWa, &pasien.GolonganDarah, &pasien.CreatedAt, &pasien.UpdatedAt, &pasien.Umur)
 
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -87,11 +89,12 @@ func (r *PasienRepository) FindByUserID(ctx context.Context, userID int) (*model
 func (r *PasienRepository) FindByID(ctx context.Context, id int) (*models.Pasien, error) {
 	pasien := &models.Pasien{}
 	err := r.db.QueryRowContext(ctx,
-		`SELECT id, user_id, nama_lengkap, tanggal_lahir, jenis_kelamin, alamat, no_wa, golongan_darah, created_at, updated_at
+		`SELECT id, user_id, nama_lengkap, tanggal_lahir, jenis_kelamin, alamat, no_wa, golongan_darah, created_at, updated_at,
+		        TIMESTAMPDIFF(YEAR, tanggal_lahir, CURDATE()) as umur
 		 FROM pasien WHERE id = ?`,
 		id,
 	).Scan(&pasien.ID, &pasien.UserID, &pasien.NamaLengkap, &pasien.TanggalLahir, &pasien.JenisKelamin,
-		&pasien.Alamat, &pasien.NoWa, &pasien.GolonganDarah, &pasien.CreatedAt, &pasien.UpdatedAt)
+		&pasien.Alamat, &pasien.NoWa, &pasien.GolonganDarah, &pasien.CreatedAt, &pasien.UpdatedAt, &pasien.Umur)
 
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -125,7 +128,8 @@ func (r *PasienRepository) FindAll(ctx context.Context, search string, limit, of
 	}
 
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT id, user_id, nama_lengkap, tanggal_lahir, jenis_kelamin, alamat, no_wa, golongan_darah, created_at, updated_at
+		`SELECT id, user_id, nama_lengkap, tanggal_lahir, jenis_kelamin, alamat, no_wa, golongan_darah, created_at, updated_at,
+		        TIMESTAMPDIFF(YEAR, tanggal_lahir, CURDATE()) as umur
 		 FROM pasien
 		 WHERE (? = '' OR nama_lengkap LIKE CONCAT('%', ?, '%'))
 		 ORDER BY created_at DESC
@@ -141,7 +145,7 @@ func (r *PasienRepository) FindAll(ctx context.Context, search string, limit, of
 	for rows.Next() {
 		p := models.Pasien{}
 		err := rows.Scan(&p.ID, &p.UserID, &p.NamaLengkap, &p.TanggalLahir, &p.JenisKelamin,
-			&p.Alamat, &p.NoWa, &p.GolonganDarah, &p.CreatedAt, &p.UpdatedAt)
+			&p.Alamat, &p.NoWa, &p.GolonganDarah, &p.CreatedAt, &p.UpdatedAt, &p.Umur)
 		if err != nil {
 			return nil, 0, fmt.Errorf("failed to scan pasien row: %w", err)
 		}
@@ -150,3 +154,23 @@ func (r *PasienRepository) FindAll(ctx context.Context, search string, limit, of
 
 	return patients, total, nil
 }
+
+func (r *PasienRepository) FindByNoWa(ctx context.Context, noWa string) (*models.Pasien, error) {
+	pasien := &models.Pasien{}
+	err := r.db.QueryRowContext(ctx,
+		`SELECT id, user_id, nama_lengkap, tanggal_lahir, jenis_kelamin, alamat, no_wa, golongan_darah, created_at, updated_at,
+		        TIMESTAMPDIFF(YEAR, tanggal_lahir, CURDATE()) as umur
+		 FROM pasien WHERE no_wa = ?`,
+		noWa,
+	).Scan(&pasien.ID, &pasien.UserID, &pasien.NamaLengkap, &pasien.TanggalLahir, &pasien.JenisKelamin,
+		&pasien.Alamat, &pasien.NoWa, &pasien.GolonganDarah, &pasien.CreatedAt, &pasien.UpdatedAt, &pasien.Umur)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to find pasien by WhatsApp number: %w", err)
+	}
+	return pasien, nil
+}
+

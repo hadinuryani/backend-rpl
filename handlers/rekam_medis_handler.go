@@ -3,6 +3,7 @@ package handlers
 import (
 	"database/sql"
 	"ic-plus-backend/dto"
+	"ic-plus-backend/models"
 	"ic-plus-backend/repositories"
 	"ic-plus-backend/services"
 	"ic-plus-backend/utils"
@@ -53,7 +54,23 @@ func (h *RekamMedisHandler) GetMyRekamMedis(c *gin.Context) {
 	p := utils.GetPaginationParams(c)
 	list, total, err := h.repo.FindByPasienID(c.Request.Context(), pasien.ID, p.Limit, p.Offset)
 	if err != nil { utils.InternalError(c, "Gagal mengambil data"); return }
-	utils.PaginatedResponse(c, "Berhasil", list, utils.BuildMeta(total, p))
+
+	// Enrich each record with resep data
+	type RMWithResep struct {
+		models.RekamMedis
+		Resep []models.DetailResep `json:"resep"`
+	}
+	var enriched []RMWithResep
+	for _, rm := range list {
+		item := RMWithResep{RekamMedis: rm}
+		resep, _ := h.repo.FindResepByRekamMedisID(c.Request.Context(), rm.ID)
+		if resep != nil && len(resep.Details) > 0 {
+			item.Resep = resep.Details
+		}
+		enriched = append(enriched, item)
+	}
+
+	utils.PaginatedResponse(c, "Berhasil", enriched, utils.BuildMeta(total, p))
 }
 
 func (h *RekamMedisHandler) Update(c *gin.Context) {
@@ -67,4 +84,34 @@ func (h *RekamMedisHandler) Update(c *gin.Context) {
 	err := h.repo.Update(c.Request.Context(), id, req.KeluhanUtama, td, req.BeratBadan, req.TinggiFundusUteri, kj, ct)
 	if err != nil { utils.InternalError(c, "Gagal memperbarui"); return }
 	utils.SuccessResponse(c, "Berhasil diperbarui", nil)
+}
+
+// GetRekamMedisByPasienID returns all rekam medis for a given patient (used by bidan).
+func (h *RekamMedisHandler) GetRekamMedisByPasienID(c *gin.Context) {
+	pasienID := parseID(c, "id")
+	if pasienID == 0 { return }
+
+	p := utils.GetPaginationParams(c)
+	list, total, err := h.repo.FindByPasienID(c.Request.Context(), pasienID, p.Limit, p.Offset)
+	if err != nil {
+		utils.InternalError(c, "Gagal mengambil data rekam medis")
+		return
+	}
+
+	// Enrich each record with resep data
+	type RMWithResep struct {
+		models.RekamMedis
+		Resep []models.DetailResep `json:"resep"`
+	}
+	var enriched []RMWithResep
+	for _, rm := range list {
+		item := RMWithResep{RekamMedis: rm}
+		resep, _ := h.repo.FindResepByRekamMedisID(c.Request.Context(), rm.ID)
+		if resep != nil && len(resep.Details) > 0 {
+			item.Resep = resep.Details
+		}
+		enriched = append(enriched, item)
+	}
+
+	utils.PaginatedResponse(c, "Berhasil", enriched, utils.BuildMeta(total, p))
 }

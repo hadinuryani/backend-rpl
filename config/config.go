@@ -12,17 +12,14 @@ import (
 
 // Config holds all configuration values loaded from environment variables.
 type Config struct {
-	AppPort  string
-	AppEnv   string
-
-	DatabaseURL string
-
+	AppHost        string
+	AppPort        string
+	AppEnv         string
+	DatabaseURL    string
 	JWTSecret      string
 	JWTExpireHours int
-
-	WAGatewayURL string
-	WAAPIToken   string
-
+	WAGatewayURL   string
+	WAAPIToken     string
 	AllowedOrigins []string
 }
 
@@ -49,11 +46,23 @@ func GetConfig() *Config {
 			origins[i] = strings.TrimSpace(origins[i])
 		}
 
-		config = &Config{
-			AppPort:  getEnv("APP_PORT", "8080"),
-			AppEnv:   getEnv("APP_ENV", "development"),
+		dbUser := getEnv("DB_USER", "root")
+		dbPass := getEnv("DB_PASSWORD", "")
+		dbHost := getEnv("DB_HOST", "localhost")
+		dbPort := getEnv("DB_PORT", "3306")
+		dbName := getEnv("DB_NAME", "klinik_ic")
 
-			DatabaseURL: getEnv("DATABASE_URL", "root:@tcp(localhost:3306)/klinik_ic?parseTime=true&loc=Local"),
+		dbURL := os.Getenv("DATABASE_URL")
+		if dbURL == "" {
+			dbURL = dbUser + ":" + dbPass + "@tcp(" + dbHost + ":" + dbPort + ")/" + dbName + "?parseTime=true&loc=Local"
+		}
+
+		config = &Config{
+			AppHost: getEnv("APP_HOST", "localhost"),
+			AppPort: getEnv("APP_PORT", "8080"),
+			AppEnv:  getEnv("APP_ENV", "development"),
+
+			DatabaseURL: dbURL,
 
 			JWTSecret:      getEnv("JWT_SECRET", "default-secret-change-me"),
 			JWTExpireHours: expireHours,

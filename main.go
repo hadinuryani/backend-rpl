@@ -54,10 +54,10 @@ func main() {
 	var waGateway services.WAGateway
 	if cfg.WAAPIToken != "" && cfg.WAAPIToken != "your-fonnte-api-token" {
 		waGateway = services.NewFonnteWAGateway(cfg.WAGatewayURL, cfg.WAAPIToken)
-		log.Println("📱 WhatsApp Gateway: Fonnte (LIVE)")
+		log.Println("WhatsApp Gateway: Fonnte (LIVE)")
 	} else {
 		waGateway = &services.StubWAGateway{}
-		log.Println("📱 WhatsApp Gateway: Stub (console only — set WA_API_TOKEN to enable)")
+		log.Println("WhatsApp Gateway: Stub (console only — set WA_API_TOKEN to enable)")
 	}
 	scheduler := services.NewSchedulerService(jadwalRepo, notifRepo, waGateway, db)
 
@@ -121,7 +121,7 @@ func main() {
 	}
 
 	go func() {
-		log.Printf("Server running on http://localhost:%s", cfg.AppPort)
+		log.Printf("Server running on http://%s:%s", cfg.AppHost, cfg.AppPort)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("Server error: %v", err)
 		}

@@ -5,8 +5,7 @@ import (
 	"time"
 )
 
-// GenerateNoAntrian creates a queue number in the format "J-01", "ST-02", etc. based on the weekday.
-// count is the number of existing antrian for the target date.
+// iki gae generate nomer antrian
 func GenerateNoAntrian(count int, weekday time.Weekday) string {
 	prefix := "A"
 	switch weekday {

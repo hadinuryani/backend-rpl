@@ -11,7 +11,7 @@ import (
 )
 
 // CORSMiddleware returns a configured CORS middleware.
-// It allows origins from config AND any ngrok tunnel URLs.
+// It allows origins from config, Vercel domains, and ngrok URLs.
 func CORSMiddleware() gin.HandlerFunc {
 	cfg := config.GetConfig()
 
@@ -22,31 +22,57 @@ func CORSMiddleware() gin.HandlerFunc {
 
 	return cors.New(cors.Config{
 		AllowOriginFunc: func(origin string) bool {
-			// Always allow configured origins (localhost etc.)
+
+			// DEBUG LOG
+			println("CORS ORIGIN:", origin)
+
+			// Allow configured origins
 			if allowedSet[origin] {
 				return true
 			}
-			// Allow any ngrok tunnel (free & paid domains)
+
+			// Allow all Vercel domains
+			if strings.Contains(origin, "vercel.app") {
+				return true
+			}
+
+			// Allow any ngrok tunnel
 			if strings.HasSuffix(origin, ".ngrok-free.app") ||
 				strings.HasSuffix(origin, ".ngrok.io") ||
 				strings.HasSuffix(origin, ".ngrok-free.dev") ||
 				strings.Contains(origin, "ngrok") {
 				return true
 			}
+
 			return false
 		},
-		AllowMethods: []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"},
+
+		AllowMethods: []string{
+			"GET",
+			"POST",
+			"PUT",
+			"PATCH",
+			"DELETE",
+			"OPTIONS",
+			"HEAD",
+		},
+
 		AllowHeaders: []string{
 			"Content-Type",
 			"Authorization",
 			"Origin",
 			"Accept",
 			"X-Requested-With",
-			"ngrok-skip-browser-warning", // Required to bypass ngrok interstitial page
+			"ngrok-skip-browser-warning",
 		},
-		ExposeHeaders:    []string{"Content-Length", "Content-Type"},
+
+		ExposeHeaders: []string{
+			"Content-Length",
+			"Content-Type",
+		},
+
 		AllowCredentials: true,
-		MaxAge:           12 * time.Hour,
+
+		MaxAge: 12 * time.Hour,
 	})
 }
-

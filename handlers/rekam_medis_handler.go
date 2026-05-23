@@ -30,6 +30,13 @@ func (h *RekamMedisHandler) Create(c *gin.Context) {
 	h.db.QueryRowContext(c.Request.Context(), `SELECT id FROM bidan WHERE user_id=?`, userID).Scan(&bidanID)
 	if bidanID == 0 { utils.InternalError(c, "Bidan tidak ditemukan"); return }
 
+	var clinicStatus string
+	_ = h.db.QueryRowContext(c.Request.Context(), `SELECT status FROM klinik_status ORDER BY updated_at DESC LIMIT 1`).Scan(&clinicStatus)
+	if clinicStatus == "tutup" {
+		utils.BadRequest(c, "Klinik sedang tutup. Tidak dapat memproses pemeriksaan saat klinik tutup.")
+		return
+	}
+
 	var req dto.CreateRekamMedisRequest
 	if err := c.ShouldBindJSON(&req); err != nil { utils.BadRequest(c, "Data tidak valid"); return }
 	if err := h.validate.Struct(req); err != nil { utils.ValidationErrorResponse(c, "Validasi gagal", err.Error()); return }

@@ -205,19 +205,14 @@ func (r *RekamMedisRepository) FindResepByRekamMedisID(ctx context.Context, rmID
 
 func (r *RekamMedisRepository) recalcStatusInTx(ctx context.Context, tx *sql.Tx, inventoriID int) error {
 	var jumlahStok, stokMin int
-	var tgl []byte
 	var tanggalKadaluarsa *time.Time
 	
 	err := tx.QueryRowContext(ctx,
 		`SELECT i.jumlah_stok, o.stok_minimum, i.tanggal_kadaluarsa
 		 FROM inventori i JOIN obat o ON o.id = i.obat_id WHERE i.id = ?`, inventoriID,
-	).Scan(&jumlahStok, &stokMin, &tgl)
+	).Scan(&jumlahStok, &stokMin, &tanggalKadaluarsa)
 	if err != nil {
 		return err
-	}
-	if len(tgl) > 0 {
-		parsed, _ := time.Parse("2006-01-02", string(tgl))
-		tanggalKadaluarsa = &parsed
 	}
 
 	status := calculateStatusStok(jumlahStok, stokMin, tanggalKadaluarsa)

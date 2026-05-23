@@ -142,7 +142,7 @@ func (r *InventoriRepository) UpdateObat(ctx context.Context, id int, nama, kate
 				id, stokVal, tglKadaluarsa, statusStok)
 		} else {
 			var currentStok, currentStokMin int
-			var currentTgl []byte
+			var currentTgl *time.Time
 			tx.QueryRowContext(ctx, `SELECT jumlah_stok, tanggal_kadaluarsa FROM inventori WHERE obat_id = ?`, id).Scan(&currentStok, &currentTgl)
 			tx.QueryRowContext(ctx, `SELECT stok_minimum FROM obat WHERE id = ?`, id).Scan(&currentStokMin)
 
@@ -151,11 +151,7 @@ func (r *InventoriRepository) UpdateObat(ctx context.Context, id int, nama, kate
 				newStok = *jumlahStok
 			}
 
-			var newTgl *time.Time
-			if len(currentTgl) > 0 {
-				parsed, _ := time.Parse("2006-01-02", string(currentTgl))
-				newTgl = &parsed
-			}
+			newTgl := currentTgl
 			if tglKadaluarsa != nil {
 				newTgl = tglKadaluarsa
 			}
@@ -216,13 +212,10 @@ func (r *InventoriRepository) FindAllInventori(ctx context.Context, statusFilter
 	var list []models.Inventori
 	for rows.Next() {
 		inv := models.Inventori{}
-		var tgl []byte
+		var tgl *time.Time
 		rows.Scan(&inv.ID, &inv.ObatID, &inv.JumlahStok, &tgl, &inv.BatchNumber, &inv.StatusStok, &inv.UpdatedAt,
 			&inv.NamaObat, &inv.Kategori, &inv.Satuan, &inv.StokMinimum)
-		if len(tgl) > 0 {
-			parsed, _ := time.Parse("2006-01-02", string(tgl))
-			inv.TanggalKadaluarsa = &parsed
-		}
+		inv.TanggalKadaluarsa = tgl
 		list = append(list, inv)
 	}
 	return list, total, nil
@@ -344,19 +337,14 @@ func (r *InventoriRepository) CountCritical(ctx context.Context) (int, error) {
 
 func (r *InventoriRepository) recalcStatusTx(ctx context.Context, tx *sql.Tx, inventoriID int) error {
 	var jumlahStok, stokMin int
-	var tgl []byte
 	var tanggalKadaluarsa *time.Time
 	
 	err := tx.QueryRowContext(ctx,
 		`SELECT i.jumlah_stok, o.stok_minimum, i.tanggal_kadaluarsa
 		 FROM inventori i JOIN obat o ON o.id = i.obat_id WHERE i.id = ?`, inventoriID,
-	).Scan(&jumlahStok, &stokMin, &tgl)
+	).Scan(&jumlahStok, &stokMin, &tanggalKadaluarsa)
 	if err != nil {
 		return err
-	}
-	if len(tgl) > 0 {
-		parsed, _ := time.Parse("2006-01-02", string(tgl))
-		tanggalKadaluarsa = &parsed
 	}
 
 	status := calculateStatusStok(jumlahStok, stokMin, tanggalKadaluarsa)

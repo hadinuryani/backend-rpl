@@ -29,6 +29,10 @@ func (h *DashboardHandler) GetStats(c *gin.Context) {
 
 	critical, _ := h.invRepo.CountCritical(c.Request.Context())
 
+	var totalPatients int
+	err = h.db.QueryRowContext(c.Request.Context(), "SELECT COUNT(*) FROM pasien").Scan(&totalPatients)
+	if err != nil { totalPatients = 0 }
+
 	var klinikStatus string
 	err = h.db.QueryRowContext(c.Request.Context(),
 		`SELECT status FROM klinik_status ORDER BY updated_at DESC LIMIT 1`,
@@ -36,10 +40,11 @@ func (h *DashboardHandler) GetStats(c *gin.Context) {
 	if err != nil { klinikStatus = "tutup" }
 
 	utils.SuccessResponse(c, "Berhasil", gin.H{
-		"total_pasien_hari_ini": total,
-		"antrian_menunggu":      waiting,
-		"antrian_selesai":       done,
-		"stok_obat_kritis":      critical,
-		"klinik_status":         klinikStatus,
+		"total_pasien_hari_ini":  total,
+		"antrian_menunggu":       waiting,
+		"antrian_selesai":        done,
+		"stok_obat_kritis":       critical,
+		"klinik_status":          klinikStatus,
+		"total_pasien_terdaftar": totalPatients,
 	})
 }

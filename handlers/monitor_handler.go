@@ -37,8 +37,10 @@ func (h *MonitorHandler) GetVisitHistory(c *gin.Context) {
 		from, to, search, search, search).Scan(&total)
 
 	rows, err := h.db.QueryContext(c.Request.Context(),
-		`SELECT a.id, a.pasien_id, a.no_antrian, p.nama_lengkap, a.tanggal_kunjungan, a.keluhan, a.status
-		 FROM antrian a JOIN pasien p ON p.id=a.pasien_id
+		`SELECT a.id, a.pasien_id, a.no_antrian, p.nama_lengkap, a.tanggal_kunjungan, a.keluhan, a.status, r.id
+		 FROM antrian a 
+		 JOIN pasien p ON p.id=a.pasien_id
+		 LEFT JOIN rekam_medis r ON r.antrian_id = a.id
 		 WHERE a.tanggal_kunjungan BETWEEN ? AND ?
 		 AND (?='' OR p.nama_lengkap LIKE CONCAT('%', ?, '%') OR a.keluhan LIKE CONCAT('%', ?, '%'))
 		 ORDER BY a.tanggal_kunjungan DESC, a.no_antrian ASC
@@ -48,24 +50,30 @@ func (h *MonitorHandler) GetVisitHistory(c *gin.Context) {
 	defer rows.Close()
 
 	type Visit struct {
-		ID        int    `json:"id"`
-		PasienID  int    `json:"pasien_id"`
-		NoAntrian string `json:"no_antrian"`
-		Nama      string `json:"nama_pasien"`
-		Tanggal   string `json:"tanggal_daftar"`
-		Keluhan   string `json:"keluhan"`
-		Status    string `json:"status"`
+		ID           int    `json:"id"`
+		PasienID     int    `json:"pasien_id"`
+		NoAntrian    string `json:"no_antrian"`
+		Nama         string `json:"nama_pasien"`
+		Tanggal      string `json:"tanggal_daftar"`
+		Keluhan      string `json:"keluhan"`
+		Status       string `json:"status"`
+		RekamMedisID *int   `json:"rekam_medis_id"`
 	}
 	var list []Visit
 	for rows.Next() {
 		v := Visit{}
 		var tgl time.Time
-		err := rows.Scan(&v.ID, &v.PasienID, &v.NoAntrian, &v.Nama, &tgl, &v.Keluhan, &v.Status)
+		var rmID sql.NullInt64
+		err := rows.Scan(&v.ID, &v.PasienID, &v.NoAntrian, &v.Nama, &tgl, &v.Keluhan, &v.Status, &rmID)
 		if err != nil {
 			utils.InternalError(c, "Gagal memproses data")
 			return
 		}
 		v.Tanggal = tgl.Format("2006-01-02")
+		if rmID.Valid {
+			idVal := int(rmID.Int64)
+			v.RekamMedisID = &idVal
+		}
 		list = append(list, v)
 	}
 	utils.PaginatedResponse(c, "Berhasil", list, utils.BuildMeta(total, p))

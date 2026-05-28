@@ -8,11 +8,11 @@ import (
 )
 
 type NotifikasiHandler struct {
-	repo       *repositories.NotifikasiRepository
-	pasienRepo *repositories.PasienRepository
+	repo       repositories.NotifikasiRepo
+	pasienRepo repositories.PasienRepo
 }
 
-func NewNotifikasiHandler(repo *repositories.NotifikasiRepository, pr *repositories.PasienRepository) *NotifikasiHandler {
+func NewNotifikasiHandler(repo repositories.NotifikasiRepo, pr repositories.PasienRepo) *NotifikasiHandler {
 	return &NotifikasiHandler{repo: repo, pasienRepo: pr}
 }
 

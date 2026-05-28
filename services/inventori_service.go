@@ -9,10 +9,10 @@ import (
 )
 
 type InventoriService struct {
-	repo *repositories.InventoriRepository
+	repo repositories.InventoriRepo
 }
 
-func NewInventoriService(repo *repositories.InventoriRepository) *InventoriService {
+func NewInventoriService(repo repositories.InventoriRepo) *InventoriService {
 	return &InventoriService{repo: repo}
 }
 

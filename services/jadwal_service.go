@@ -10,10 +10,10 @@ import (
 )
 
 type JadwalService struct {
-	repo *repositories.JadwalRepository
+	repo repositories.JadwalRepo
 }
 
-func NewJadwalService(repo *repositories.JadwalRepository) *JadwalService {
+func NewJadwalService(repo repositories.JadwalRepo) *JadwalService {
 	return &JadwalService{repo: repo}
 }
 

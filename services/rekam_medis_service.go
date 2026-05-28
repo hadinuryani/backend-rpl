@@ -11,13 +11,14 @@ import (
 )
 
 type RekamMedisService struct {
-	rmRepo      *repositories.RekamMedisRepository
-	antrianRepo *repositories.AntrianRepository
+	rmRepo      repositories.RekamMedisRepo
+	antrianRepo repositories.AntrianRepo
+	jadwalRepo  repositories.JadwalRepo
 	db          *sql.DB
 }
 
-func NewRekamMedisService(rmRepo *repositories.RekamMedisRepository, antrianRepo *repositories.AntrianRepository, db *sql.DB) *RekamMedisService {
-	return &RekamMedisService{rmRepo: rmRepo, antrianRepo: antrianRepo, db: db}
+func NewRekamMedisService(rmRepo repositories.RekamMedisRepo, antrianRepo repositories.AntrianRepo, jadwalRepo repositories.JadwalRepo, db *sql.DB) *RekamMedisService {
+	return &RekamMedisService{rmRepo: rmRepo, antrianRepo: antrianRepo, jadwalRepo: jadwalRepo, db: db}
 }
 
 // CreateWithResep creates rekam medis + resep + detail_resep + marks antrian as selesai, all in one transaction.
@@ -77,11 +78,11 @@ func (s *RekamMedisService) CreateWithResep(ctx context.Context, bidanID int, re
 		}
 		
 		// Get pasien_id from antrian
-		var pasienID int
-		err = tx.QueryRowContext(ctx, `SELECT pasien_id FROM antrian WHERE id=?`, req.AntrianID).Scan(&pasienID)
-		if err != nil {
-			return 0, 0, fmt.Errorf("get pasien_id from antrian: %w", err)
+		antrian, err := s.antrianRepo.FindByID(ctx, req.AntrianID)
+		if err != nil || antrian == nil {
+			return 0, 0, fmt.Errorf("antrian tidak ditemukan")
 		}
+		pasienID := antrian.PasienID
 
 		var catatanKontrol *string
 		defaultCatatan := "Kontrol Rutin"
@@ -91,10 +92,7 @@ func (s *RekamMedisService) CreateWithResep(ctx context.Context, bidanID int, re
 			catatanKontrol = &defaultCatatan
 		}
 		
-		_, err = tx.ExecContext(ctx,
-			`INSERT INTO jadwal_kontrol (pasien_id, bidan_id, tanggal_kontrol, catatan) VALUES (?, ?, ?, ?)`,
-			pasienID, bidanID, tanggalKontrol, catatanKontrol,
-		)
+		_, err = s.jadwalRepo.CreateTx(ctx, tx, pasienID, bidanID, tanggalKontrol, catatanKontrol)
 		if err != nil {
 			return 0, 0, fmt.Errorf("create jadwal kontrol: %w", err)
 		}

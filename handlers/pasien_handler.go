@@ -12,11 +12,11 @@ import (
 )
 
 type PasienHandler struct {
-	repo     *repositories.PasienRepository
+	repo     repositories.PasienRepo
 	validate *validator.Validate
 }
 
-func NewPasienHandler(repo *repositories.PasienRepository) *PasienHandler {
+func NewPasienHandler(repo repositories.PasienRepo) *PasienHandler {
 	return &PasienHandler{repo: repo, validate: validator.New()}
 }
 

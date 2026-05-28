@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"database/sql"
 	"ic-plus-backend/dto"
 	"ic-plus-backend/models"
 	"ic-plus-backend/repositories"
@@ -14,24 +13,23 @@ import (
 
 type RekamMedisHandler struct {
 	service    *services.RekamMedisService
-	repo       *repositories.RekamMedisRepository
-	pasienRepo *repositories.PasienRepository
-	db         *sql.DB
+	repo       repositories.RekamMedisRepo
+	pasienRepo repositories.PasienRepo
+	bidanRepo  repositories.BidanRepo
+	klinikRepo repositories.KlinikRepo
 	validate   *validator.Validate
 }
 
-func NewRekamMedisHandler(svc *services.RekamMedisService, repo *repositories.RekamMedisRepository, pr *repositories.PasienRepository, db *sql.DB) *RekamMedisHandler {
-	return &RekamMedisHandler{service: svc, repo: repo, pasienRepo: pr, db: db, validate: validator.New()}
+func NewRekamMedisHandler(svc *services.RekamMedisService, repo repositories.RekamMedisRepo, pr repositories.PasienRepo, bidanRepo repositories.BidanRepo, klinikRepo repositories.KlinikRepo) *RekamMedisHandler {
+	return &RekamMedisHandler{service: svc, repo: repo, pasienRepo: pr, bidanRepo: bidanRepo, klinikRepo: klinikRepo, validate: validator.New()}
 }
 
 func (h *RekamMedisHandler) Create(c *gin.Context) {
 	userID := c.GetInt("user_id")
-	var bidanID int
-	h.db.QueryRowContext(c.Request.Context(), `SELECT id FROM bidan WHERE user_id=?`, userID).Scan(&bidanID)
-	if bidanID == 0 { utils.InternalError(c, "Bidan tidak ditemukan"); return }
+	bidanID, err := h.bidanRepo.FindBidanIDByUserID(c.Request.Context(), userID)
+	if err != nil { utils.InternalError(c, "Bidan tidak ditemukan"); return }
 
-	var clinicStatus string
-	_ = h.db.QueryRowContext(c.Request.Context(), `SELECT status FROM klinik_status ORDER BY updated_at DESC LIMIT 1`).Scan(&clinicStatus)
+	clinicStatus := h.klinikRepo.GetStatusString(c.Request.Context())
 	if clinicStatus == "tutup" {
 		utils.BadRequest(c, "Klinik sedang tutup. Tidak dapat memproses pemeriksaan saat klinik tutup.")
 		return

@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"database/sql"
 	"fmt"
 	"ic-plus-backend/dto"
 	"ic-plus-backend/repositories"
@@ -13,23 +12,23 @@ import (
 )
 
 type JadwalHandler struct {
-	service    *services.JadwalService
-	repo       *repositories.JadwalRepository
-	pasienRepo *repositories.PasienRepository
-	db         *sql.DB
-	validate   *validator.Validate
-	scheduler  *services.SchedulerService
+	service        *services.JadwalService
+	repo           repositories.JadwalRepo
+	pasienRepo     repositories.PasienRepo
+	bidanRepo      repositories.BidanRepo
+	pengaturanRepo repositories.PengaturanRepo
+	validate       *validator.Validate
+	scheduler      *services.SchedulerService
 }
 
-func NewJadwalHandler(svc *services.JadwalService, repo *repositories.JadwalRepository, pr *repositories.PasienRepository, db *sql.DB, scheduler *services.SchedulerService) *JadwalHandler {
-	return &JadwalHandler{service: svc, repo: repo, pasienRepo: pr, db: db, validate: validator.New(), scheduler: scheduler}
+func NewJadwalHandler(svc *services.JadwalService, repo repositories.JadwalRepo, pr repositories.PasienRepo, bidanRepo repositories.BidanRepo, pengaturanRepo repositories.PengaturanRepo, scheduler *services.SchedulerService) *JadwalHandler {
+	return &JadwalHandler{service: svc, repo: repo, pasienRepo: pr, bidanRepo: bidanRepo, pengaturanRepo: pengaturanRepo, validate: validator.New(), scheduler: scheduler}
 }
 
 func (h *JadwalHandler) Create(c *gin.Context) {
 	userID := c.GetInt("user_id")
-	var bidanID int
-	h.db.QueryRowContext(c.Request.Context(), `SELECT id FROM bidan WHERE user_id=?`, userID).Scan(&bidanID)
-	if bidanID == 0 { utils.InternalError(c, "Bidan tidak ditemukan"); return }
+	bidanID, err := h.bidanRepo.FindBidanIDByUserID(c.Request.Context(), userID)
+	if err != nil { utils.InternalError(c, "Bidan tidak ditemukan"); return }
 
 	var req dto.CreateJadwalRequest
 	if err := c.ShouldBindJSON(&req); err != nil { utils.BadRequest(c, "Data tidak valid"); return }
@@ -74,25 +73,10 @@ func (h *JadwalHandler) GetMyJadwal(c *gin.Context) {
 }
 
 func (h *JadwalHandler) GetWaktuPengingat(c *gin.Context) {
-	rows, err := h.db.QueryContext(c.Request.Context(), `SELECT kunci, nilai FROM pengaturan`)
+	settings, err := h.pengaturanRepo.GetAll(c.Request.Context())
 	if err != nil {
 		utils.InternalError(c, "Gagal mengambil pengaturan")
 		return
-	}
-	defer rows.Close()
-
-	settings := gin.H{
-		"waktu_pengingat": "08:00",
-		"nama_klinik":      "Klinik Indah Care Plus (IC+)",
-		"alamat_klinik":    "Jl. Indah Care No. 45, Jakarta",
-		"jam_kontrol":      "08:00 - selesai",
-	}
-
-	for rows.Next() {
-		var kunci, nilai string
-		if err := rows.Scan(&kunci, &nilai); err == nil {
-			settings[kunci] = nilai
-		}
 	}
 	utils.SuccessResponse(c, "Berhasil", settings)
 }
@@ -119,11 +103,7 @@ func (h *JadwalHandler) UpdateWaktuPengingat(c *gin.Context) {
 			return
 		}
 		timeStr := fmt.Sprintf("%02d:%02d", hour, minute)
-		_, err = h.db.ExecContext(c.Request.Context(),
-			`INSERT INTO pengaturan (kunci, nilai) VALUES ('waktu_pengingat', ?) ON DUPLICATE KEY UPDATE nilai = ?`,
-			timeStr, timeStr,
-		)
-		if err != nil {
+		if err := h.pengaturanRepo.Upsert(c.Request.Context(), "waktu_pengingat", timeStr); err != nil {
 			utils.InternalError(c, "Gagal menyimpan pengaturan waktu pengingat")
 			return
 		}
@@ -135,11 +115,7 @@ func (h *JadwalHandler) UpdateWaktuPengingat(c *gin.Context) {
 
 	// Update nama_klinik if provided
 	if req.NamaKlinik != "" {
-		_, err := h.db.ExecContext(c.Request.Context(),
-			`INSERT INTO pengaturan (kunci, nilai) VALUES ('nama_klinik', ?) ON DUPLICATE KEY UPDATE nilai = ?`,
-			req.NamaKlinik, req.NamaKlinik,
-		)
-		if err != nil {
+		if err := h.pengaturanRepo.Upsert(c.Request.Context(), "nama_klinik", req.NamaKlinik); err != nil {
 			utils.InternalError(c, "Gagal menyimpan pengaturan nama klinik")
 			return
 		}
@@ -147,11 +123,7 @@ func (h *JadwalHandler) UpdateWaktuPengingat(c *gin.Context) {
 
 	// Update alamat_klinik if provided
 	if req.AlamatKlinik != "" {
-		_, err := h.db.ExecContext(c.Request.Context(),
-			`INSERT INTO pengaturan (kunci, nilai) VALUES ('alamat_klinik', ?) ON DUPLICATE KEY UPDATE nilai = ?`,
-			req.AlamatKlinik, req.AlamatKlinik,
-		)
-		if err != nil {
+		if err := h.pengaturanRepo.Upsert(c.Request.Context(), "alamat_klinik", req.AlamatKlinik); err != nil {
 			utils.InternalError(c, "Gagal menyimpan pengaturan alamat klinik")
 			return
 		}
@@ -159,11 +131,7 @@ func (h *JadwalHandler) UpdateWaktuPengingat(c *gin.Context) {
 
 	// Update jam_kontrol if provided
 	if req.JamKontrol != "" {
-		_, err := h.db.ExecContext(c.Request.Context(),
-			`INSERT INTO pengaturan (kunci, nilai) VALUES ('jam_kontrol', ?) ON DUPLICATE KEY UPDATE nilai = ?`,
-			req.JamKontrol, req.JamKontrol,
-		)
-		if err != nil {
+		if err := h.pengaturanRepo.Upsert(c.Request.Context(), "jam_kontrol", req.JamKontrol); err != nil {
 			utils.InternalError(c, "Gagal menyimpan pengaturan jam kontrol")
 			return
 		}

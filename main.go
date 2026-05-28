@@ -42,9 +42,14 @@ func main() {
 	jadwalRepo := repositories.NewJadwalRepository(db)
 	notifRepo := repositories.NewNotifikasiRepository(db)
 	invRepo := repositories.NewInventoriRepository(db)
+	klinikRepo := repositories.NewKlinikRepository(db)
+	bidanRepo := repositories.NewBidanRepository(db)
+	pengaturanRepo := repositories.NewPengaturanRepository(db)
+	monitorRepo := repositories.NewMonitorRepository(db)
 
-	antrianService := services.NewAntrianService(antrianRepo, db)
-	rmService := services.NewRekamMedisService(rmRepo, antrianRepo, db)
+	// 4. Initialize services
+	antrianService := services.NewAntrianService(antrianRepo, klinikRepo)
+	rmService := services.NewRekamMedisService(rmRepo, antrianRepo, jadwalRepo, db)
 	jadwalService := services.NewJadwalService(jadwalRepo)
 	notifService := services.NewNotifikasiService(notifRepo)
 	invService := services.NewInventoriService(invRepo)
@@ -59,23 +64,23 @@ func main() {
 		waGateway = &services.StubWAGateway{}
 		log.Println("WhatsApp Gateway: Stub (console only — set WA_API_TOKEN to enable)")
 	}
-	scheduler := services.NewSchedulerService(jadwalRepo, notifRepo, waGateway, db)
+	scheduler := services.NewSchedulerService(jadwalRepo, notifRepo, pengaturanRepo, waGateway)
 
 	authService := services.NewAuthService(userRepo, pasienRepo, waGateway)
 
 	// 6. Initialize handlers
 	authHandler := handlers.NewAuthHandler(authService)
 	pasienHandler := handlers.NewPasienHandler(pasienRepo)
-	bidanHandler := handlers.NewBidanHandler(pasienRepo, userRepo, db)
-	klinikHandler := handlers.NewKlinikHandler(db)
+	bidanHandler := handlers.NewBidanHandler(pasienRepo, userRepo, bidanRepo, db)
+	klinikHandler := handlers.NewKlinikHandler(klinikRepo, bidanRepo)
 	antrianHandler := handlers.NewAntrianHandler(antrianService, antrianRepo, pasienRepo)
-	rmHandler := handlers.NewRekamMedisHandler(rmService, rmRepo, pasienRepo, db)
+	rmHandler := handlers.NewRekamMedisHandler(rmService, rmRepo, pasienRepo, bidanRepo, klinikRepo)
 	resepHandler := handlers.NewResepHandler(rmRepo)
-	jadwalHandler := handlers.NewJadwalHandler(jadwalService, jadwalRepo, pasienRepo, db, scheduler)
+	jadwalHandler := handlers.NewJadwalHandler(jadwalService, jadwalRepo, pasienRepo, bidanRepo, pengaturanRepo, scheduler)
 	notifHandler := handlers.NewNotifikasiHandler(notifRepo, pasienRepo)
-	invHandler := handlers.NewInventoriHandler(invService, invRepo, db)
-	dashHandler := handlers.NewDashboardHandler(antrianRepo, invRepo, db)
-	monitorHandler := handlers.NewMonitorHandler(db)
+	invHandler := handlers.NewInventoriHandler(invService, invRepo, bidanRepo)
+	dashHandler := handlers.NewDashboardHandler(antrianRepo, invRepo, pasienRepo, klinikRepo)
+	monitorHandler := handlers.NewMonitorHandler(monitorRepo)
 
 	// 7. Setup Gin router
 	if cfg.AppEnv == "production" {

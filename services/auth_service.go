@@ -15,12 +15,12 @@ import (
 )
 
 type AuthService struct {
-	userRepo   *repositories.UserRepository
-	pasienRepo *repositories.PasienRepository
+	userRepo   repositories.UserRepo
+	pasienRepo repositories.PasienRepo
 	waGateway  WAGateway
 }
 
-func NewAuthService(userRepo *repositories.UserRepository, pasienRepo *repositories.PasienRepository, waGateway WAGateway) *AuthService {
+func NewAuthService(userRepo repositories.UserRepo, pasienRepo repositories.PasienRepo, waGateway WAGateway) *AuthService {
 	return &AuthService{userRepo: userRepo, pasienRepo: pasienRepo, waGateway: waGateway}
 }
 

@@ -13,14 +13,15 @@ import (
 )
 
 type BidanHandler struct {
-	pasienRepo *repositories.PasienRepository
-	userRepo   *repositories.UserRepository
+	pasienRepo repositories.PasienRepo
+	userRepo   repositories.UserRepo
+	bidanRepo  repositories.BidanRepo
 	db         *sql.DB
 	validate   *validator.Validate
 }
 
-func NewBidanHandler(pasienRepo *repositories.PasienRepository, userRepo *repositories.UserRepository, db *sql.DB) *BidanHandler {
-	return &BidanHandler{pasienRepo: pasienRepo, userRepo: userRepo, db: db, validate: validator.New()}
+func NewBidanHandler(pasienRepo repositories.PasienRepo, userRepo repositories.UserRepo, bidanRepo repositories.BidanRepo, db *sql.DB) *BidanHandler {
+	return &BidanHandler{pasienRepo: pasienRepo, userRepo: userRepo, bidanRepo: bidanRepo, db: db, validate: validator.New()}
 }
 
 func (h *BidanHandler) GetAllPasien(c *gin.Context) {
@@ -74,20 +75,16 @@ func (h *BidanHandler) CreatePasien(c *gin.Context) {
 	dummyEmail := req.NoWa + "@ic-plus.local"
 	dummyHash := "$2a$12$placeholder"
 
-	result, err := tx.ExecContext(c.Request.Context(),
-		`INSERT INTO users (email, password_hash, role) VALUES (?, ?, 'pasien')`,
-		dummyEmail, dummyHash,
-	)
+	user, err := h.userRepo.CreateTx(c.Request.Context(), tx, dummyEmail, dummyHash, "pasien")
 	if err != nil {
 		utils.InternalError(c, "Gagal membuat akun pasien")
 		return
 	}
-	userID, _ := result.LastInsertId()
 
 	var golDarah *string
 	if req.GolonganDarah != "" { golDarah = &req.GolonganDarah }
 
-	pasien, err := h.pasienRepo.CreateByBidan(c.Request.Context(), tx, req.NamaLengkap, tglLahir, req.JenisKelamin, req.Alamat, req.NoWa, golDarah, int(userID))
+	pasien, err := h.pasienRepo.CreateByBidan(c.Request.Context(), tx, req.NamaLengkap, tglLahir, req.JenisKelamin, req.Alamat, req.NoWa, golDarah, user.ID)
 	if err != nil {
 		utils.InternalError(c, "Gagal menyimpan data pasien")
 		return

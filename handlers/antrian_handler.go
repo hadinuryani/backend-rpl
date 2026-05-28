@@ -15,12 +15,12 @@ import (
 
 type AntrianHandler struct {
 	service     *services.AntrianService
-	repo        *repositories.AntrianRepository
-	pasienRepo  *repositories.PasienRepository
+	repo        repositories.AntrianRepo
+	pasienRepo  repositories.PasienRepo
 	validate    *validator.Validate
 }
 
-func NewAntrianHandler(service *services.AntrianService, repo *repositories.AntrianRepository, pasienRepo *repositories.PasienRepository) *AntrianHandler {
+func NewAntrianHandler(service *services.AntrianService, repo repositories.AntrianRepo, pasienRepo repositories.PasienRepo) *AntrianHandler {
 	return &AntrianHandler{service: service, repo: repo, pasienRepo: pasienRepo, validate: validator.New()}
 }
 

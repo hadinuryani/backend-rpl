@@ -44,6 +44,33 @@ func (r *JadwalRepository) Create(ctx context.Context, pasienID, bidanID int, ta
 	return jk, nil
 }
 
+func (r *JadwalRepository) CreateTx(ctx context.Context, tx *sql.Tx, pasienID, bidanID int, tanggal time.Time, catatan *string) (*models.JadwalKontrol, error) {
+	result, err := tx.ExecContext(ctx,
+		`INSERT INTO jadwal_kontrol (pasien_id, bidan_id, tanggal_kontrol, catatan)
+		 VALUES (?,?,?,?)`,
+		pasienID, bidanID, tanggal, catatan,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("create jadwal inside tx: %w", err)
+	}
+	id, err := result.LastInsertId()
+	if err != nil {
+		return nil, err
+	}
+
+	jk := &models.JadwalKontrol{}
+	var tgl time.Time
+	err = tx.QueryRowContext(ctx,
+		`SELECT id, pasien_id, bidan_id, tanggal_kontrol, catatan, status_notifikasi, created_at, updated_at
+		 FROM jadwal_kontrol WHERE id=?`, id,
+	).Scan(&jk.ID, &jk.PasienID, &jk.BidanID, &tgl, &jk.Catatan, &jk.StatusNotifikasi, &jk.CreatedAt, &jk.UpdatedAt)
+	if err != nil {
+		return nil, err
+	}
+	jk.TanggalKontrol = tgl
+	return jk, nil
+}
+
 func (r *JadwalRepository) FindAll(ctx context.Context, limit, offset int) ([]models.JadwalKontrol, int, error) {
 	var total int
 	err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM jadwal_kontrol`).Scan(&total)

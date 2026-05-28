@@ -1,20 +1,20 @@
 package handlers
 
 import (
-	"database/sql"
 	"time"
 
+	"ic-plus-backend/repositories"
 	"ic-plus-backend/utils"
 
 	"github.com/gin-gonic/gin"
 )
 
 type MonitorHandler struct {
-	db *sql.DB
+	repo repositories.MonitorRepo
 }
 
-func NewMonitorHandler(db *sql.DB) *MonitorHandler {
-	return &MonitorHandler{db: db}
+func NewMonitorHandler(repo repositories.MonitorRepo) *MonitorHandler {
+	return &MonitorHandler{repo: repo}
 }
 
 func (h *MonitorHandler) GetVisitHistory(c *gin.Context) {
@@ -29,52 +29,7 @@ func (h *MonitorHandler) GetVisitHistory(c *gin.Context) {
 	if fromStr != "" { from, _ = time.Parse("2006-01-02", fromStr) }
 	if toStr != "" { to, _ = time.Parse("2006-01-02", toStr) }
 
-	var total int
-	h.db.QueryRowContext(c.Request.Context(),
-		`SELECT COUNT(*) FROM antrian a JOIN pasien p ON p.id=a.pasien_id
-		 WHERE a.tanggal_kunjungan BETWEEN ? AND ?
-		 AND (?='' OR p.nama_lengkap LIKE CONCAT('%', ?, '%') OR a.keluhan LIKE CONCAT('%', ?, '%'))`,
-		from, to, search, search, search).Scan(&total)
-
-	rows, err := h.db.QueryContext(c.Request.Context(),
-		`SELECT a.id, a.pasien_id, a.no_antrian, p.nama_lengkap, a.tanggal_kunjungan, a.keluhan, a.status, r.id
-		 FROM antrian a 
-		 JOIN pasien p ON p.id=a.pasien_id
-		 LEFT JOIN rekam_medis r ON r.antrian_id = a.id
-		 WHERE a.tanggal_kunjungan BETWEEN ? AND ?
-		 AND (?='' OR p.nama_lengkap LIKE CONCAT('%', ?, '%') OR a.keluhan LIKE CONCAT('%', ?, '%'))
-		 ORDER BY a.tanggal_kunjungan DESC, a.no_antrian ASC
-		 LIMIT ? OFFSET ?`,
-		from, to, search, search, search, p.Limit, p.Offset)
+	list, total, err := h.repo.GetVisitHistory(c.Request.Context(), from, to, search, p.Limit, p.Offset)
 	if err != nil { utils.InternalError(c, "Gagal mengambil data"); return }
-	defer rows.Close()
-
-	type Visit struct {
-		ID           int    `json:"id"`
-		PasienID     int    `json:"pasien_id"`
-		NoAntrian    string `json:"no_antrian"`
-		Nama         string `json:"nama_pasien"`
-		Tanggal      string `json:"tanggal_daftar"`
-		Keluhan      string `json:"keluhan"`
-		Status       string `json:"status"`
-		RekamMedisID *int   `json:"rekam_medis_id"`
-	}
-	var list []Visit
-	for rows.Next() {
-		v := Visit{}
-		var tgl time.Time
-		var rmID sql.NullInt64
-		err := rows.Scan(&v.ID, &v.PasienID, &v.NoAntrian, &v.Nama, &tgl, &v.Keluhan, &v.Status, &rmID)
-		if err != nil {
-			utils.InternalError(c, "Gagal memproses data")
-			return
-		}
-		v.Tanggal = tgl.Format("2006-01-02")
-		if rmID.Valid {
-			idVal := int(rmID.Int64)
-			v.RekamMedisID = &idVal
-		}
-		list = append(list, v)
-	}
 	utils.PaginatedResponse(c, "Berhasil", list, utils.BuildMeta(total, p))
 }

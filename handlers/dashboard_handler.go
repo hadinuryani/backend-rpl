@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"database/sql"
 	"time"
 
 	"ic-plus-backend/repositories"
@@ -11,13 +10,14 @@ import (
 )
 
 type DashboardHandler struct {
-	antrianRepo *repositories.AntrianRepository
-	invRepo     *repositories.InventoriRepository
-	db          *sql.DB
+	antrianRepo repositories.AntrianRepo
+	invRepo     repositories.InventoriRepo
+	pasienRepo  repositories.PasienRepo
+	klinikRepo  repositories.KlinikRepo
 }
 
-func NewDashboardHandler(ar *repositories.AntrianRepository, ir *repositories.InventoriRepository, db *sql.DB) *DashboardHandler {
-	return &DashboardHandler{antrianRepo: ar, invRepo: ir, db: db}
+func NewDashboardHandler(ar repositories.AntrianRepo, ir repositories.InventoriRepo, pr repositories.PasienRepo, kr repositories.KlinikRepo) *DashboardHandler {
+	return &DashboardHandler{antrianRepo: ar, invRepo: ir, pasienRepo: pr, klinikRepo: kr}
 }
 
 func (h *DashboardHandler) GetStats(c *gin.Context) {
@@ -29,15 +29,9 @@ func (h *DashboardHandler) GetStats(c *gin.Context) {
 
 	critical, _ := h.invRepo.CountCritical(c.Request.Context())
 
-	var totalPatients int
-	err = h.db.QueryRowContext(c.Request.Context(), "SELECT COUNT(*) FROM pasien").Scan(&totalPatients)
-	if err != nil { totalPatients = 0 }
+	_, totalPatients, _ := h.pasienRepo.FindAll(c.Request.Context(), "", 1, 0)
 
-	var klinikStatus string
-	err = h.db.QueryRowContext(c.Request.Context(),
-		`SELECT status FROM klinik_status ORDER BY updated_at DESC LIMIT 1`,
-	).Scan(&klinikStatus)
-	if err != nil { klinikStatus = "tutup" }
+	klinikStatus := h.klinikRepo.GetStatusString(c.Request.Context())
 
 	utils.SuccessResponse(c, "Berhasil", gin.H{
 		"total_pasien_hari_ini":  total,

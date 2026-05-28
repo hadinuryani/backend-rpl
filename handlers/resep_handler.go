@@ -8,10 +8,10 @@ import (
 )
 
 type ResepHandler struct {
-	rmRepo *repositories.RekamMedisRepository
+	rmRepo repositories.RekamMedisRepo
 }
 
-func NewResepHandler(rmRepo *repositories.RekamMedisRepository) *ResepHandler {
+func NewResepHandler(rmRepo repositories.RekamMedisRepo) *ResepHandler {
 	return &ResepHandler{rmRepo: rmRepo}
 }
 

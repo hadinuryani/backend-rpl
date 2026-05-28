@@ -37,6 +37,33 @@ func (r *UserRepository) Create(ctx context.Context, email, passwordHash, role s
 	return r.FindByID(ctx, int(id))
 }
 
+// CreateTx inserts a new user within a transaction and returns the created user.
+func (r *UserRepository) CreateTx(ctx context.Context, tx *sql.Tx, email, passwordHash, role string) (*models.User, error) {
+	result, err := tx.ExecContext(ctx,
+		`INSERT INTO users (email, password_hash, role) VALUES (?, ?, ?)`,
+		email, passwordHash, role,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create user inside tx: %w", err)
+	}
+
+	id, err := result.LastInsertId()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get last insert id inside tx: %w", err)
+	}
+
+	user := &models.User{}
+	err = tx.QueryRowContext(ctx,
+		`SELECT id, email, password_hash, role, is_active, created_at, updated_at
+		 FROM users WHERE id = ?`,
+		id,
+	).Scan(&user.ID, &user.Email, &user.PasswordHash, &user.Role, &user.IsActive, &user.CreatedAt, &user.UpdatedAt)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find user by ID inside tx: %w", err)
+	}
+	return user, nil
+}
+
 // FindByEmail retrieves a user by email address.
 func (r *UserRepository) FindByEmail(ctx context.Context, email string) (*models.User, error) {
 	user := &models.User{}

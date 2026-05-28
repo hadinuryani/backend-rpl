@@ -8,10 +8,10 @@ import (
 )
 
 type NotifikasiService struct {
-	repo *repositories.NotifikasiRepository
+	repo repositories.NotifikasiRepo
 }
 
-func NewNotifikasiService(repo *repositories.NotifikasiRepository) *NotifikasiService {
+func NewNotifikasiService(repo repositories.NotifikasiRepo) *NotifikasiService {
 	return &NotifikasiService{repo: repo}
 }
 

@@ -2,7 +2,6 @@ package services
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"log"
 	"sync"
@@ -29,25 +28,25 @@ func (s *StubWAGateway) SendMessage(target, message string) error {
 
 // SchedulerService manages the H-1 notification cron job.
 type SchedulerService struct {
-	jadwalRepo *repositories.JadwalRepository
-	notifRepo  *repositories.NotifikasiRepository
-	waGateway  WAGateway
-	cron       *cron.Cron
-	db         *sql.DB
-	mu         sync.Mutex
-	entryID    cron.EntryID
+	jadwalRepo    repositories.JadwalRepo
+	notifRepo     repositories.NotifikasiRepo
+	pengaturanRepo repositories.PengaturanRepo
+	waGateway     WAGateway
+	cron          *cron.Cron
+	mu            sync.Mutex
+	entryID       cron.EntryID
 }
 
-func NewSchedulerService(jadwalRepo *repositories.JadwalRepository, notifRepo *repositories.NotifikasiRepository, waGateway WAGateway, db *sql.DB) *SchedulerService {
+func NewSchedulerService(jadwalRepo repositories.JadwalRepo, notifRepo repositories.NotifikasiRepo, pengaturanRepo repositories.PengaturanRepo, waGateway WAGateway) *SchedulerService {
 	// Use WIB timezone (UTC+7)
 	loc, _ := time.LoadLocation("Asia/Jakarta")
 	c := cron.New(cron.WithLocation(loc))
 	return &SchedulerService{
-		jadwalRepo: jadwalRepo,
-		notifRepo:  notifRepo,
-		waGateway:  waGateway,
-		cron:       c,
-		db:         db,
+		jadwalRepo:     jadwalRepo,
+		notifRepo:      notifRepo,
+		pengaturanRepo: pengaturanRepo,
+		waGateway:      waGateway,
+		cron:           c,
 	}
 }
 
@@ -57,8 +56,7 @@ func (s *SchedulerService) Start() {
 	defer s.mu.Unlock()
 
 	// Read waktu_pengingat from database
-	var waktu string
-	err := s.db.QueryRow(`SELECT nilai FROM pengaturan WHERE kunci = 'waktu_pengingat'`).Scan(&waktu)
+	waktu, err := s.pengaturanRepo.GetByKey(context.Background(), "waktu_pengingat")
 	if err != nil || waktu == "" {
 		waktu = "08:00"
 	}
@@ -135,12 +133,11 @@ func (s *SchedulerService) runH1NotificationJob() {
 	namaKlinik := "Klinik Indah Care Plus (IC+)"
 	jamKontrol := "08:00 - selesai"
 
-	var val string
-	err = s.db.QueryRowContext(ctx, `SELECT nilai FROM pengaturan WHERE kunci = 'nama_klinik'`).Scan(&val)
+	val, err := s.pengaturanRepo.GetByKey(ctx, "nama_klinik")
 	if err == nil && val != "" {
 		namaKlinik = val
 	}
-	err = s.db.QueryRowContext(ctx, `SELECT nilai FROM pengaturan WHERE kunci = 'jam_kontrol'`).Scan(&val)
+	val, err = s.pengaturanRepo.GetByKey(ctx, "jam_kontrol")
 	if err == nil && val != "" {
 		jamKontrol = val
 	}

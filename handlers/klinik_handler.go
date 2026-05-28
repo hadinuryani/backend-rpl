@@ -1,33 +1,26 @@
 package handlers
 
 import (
-	"database/sql"
+	"ic-plus-backend/repositories"
 	"ic-plus-backend/utils"
 
 	"github.com/gin-gonic/gin"
 )
 
 type KlinikHandler struct {
-	db *sql.DB
+	repo     repositories.KlinikRepo
+	bidanRepo repositories.BidanRepo
 }
 
-func NewKlinikHandler(db *sql.DB) *KlinikHandler {
-	return &KlinikHandler{db: db}
+func NewKlinikHandler(repo repositories.KlinikRepo, bidanRepo repositories.BidanRepo) *KlinikHandler {
+	return &KlinikHandler{repo: repo, bidanRepo: bidanRepo}
 }
 
 func (h *KlinikHandler) GetStatus(c *gin.Context) {
-	var status, catatan string
-	var catatanNull sql.NullString
-	err := h.db.QueryRowContext(c.Request.Context(),
-		`SELECT status, catatan FROM klinik_status ORDER BY updated_at DESC LIMIT 1`,
-	).Scan(&status, &catatanNull)
-
+	status, catatan, err := h.repo.GetStatus(c.Request.Context())
 	if err != nil {
 		utils.SuccessResponse(c, "Berhasil", gin.H{"status": "tutup", "catatan": ""})
 		return
-	}
-	if catatanNull.Valid {
-		catatan = catatanNull.String
 	}
 	utils.SuccessResponse(c, "Berhasil", gin.H{"status": status, "catatan": catatan})
 }
@@ -47,31 +40,15 @@ func (h *KlinikHandler) SetStatus(c *gin.Context) {
 	}
 
 	userID := c.GetInt("user_id")
-	var bidanID int
-	err := h.db.QueryRowContext(c.Request.Context(), `SELECT id FROM bidan WHERE user_id = ?`, userID).Scan(&bidanID)
+	bidanID, err := h.bidanRepo.FindBidanIDByUserID(c.Request.Context(), userID)
 	if err != nil {
 		utils.InternalError(c, "Bidan tidak ditemukan")
 		return
 	}
 
-	result, err := h.db.ExecContext(c.Request.Context(),
-		`UPDATE klinik_status SET status = ?, catatan = ? WHERE bidan_id = ?`,
-		req.Status, req.Catatan, bidanID,
-	)
-	if err != nil {
+	if err := h.repo.SetStatus(c.Request.Context(), bidanID, req.Status, req.Catatan); err != nil {
 		utils.InternalError(c, "Gagal memperbarui status")
 		return
-	}
-	rowsAffected, _ := result.RowsAffected()
-	if rowsAffected == 0 {
-		_, err = h.db.ExecContext(c.Request.Context(),
-			`INSERT INTO klinik_status (bidan_id, status, catatan) VALUES (?, ?, ?)`,
-			bidanID, req.Status, req.Catatan,
-		)
-		if err != nil {
-			utils.InternalError(c, "Gagal menyimpan status")
-			return
-		}
 	}
 
 	utils.SuccessResponse(c, "Status klinik berhasil diperbarui", gin.H{"status": req.Status})

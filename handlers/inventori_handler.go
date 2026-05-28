@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"database/sql"
 	"time"
 
 	"ic-plus-backend/dto"
@@ -14,14 +13,14 @@ import (
 )
 
 type InventoriHandler struct {
-	service  *services.InventoriService
-	repo     *repositories.InventoriRepository
-	db       *sql.DB
-	validate *validator.Validate
+	service   *services.InventoriService
+	repo      repositories.InventoriRepo
+	bidanRepo repositories.BidanRepo
+	validate  *validator.Validate
 }
 
-func NewInventoriHandler(svc *services.InventoriService, repo *repositories.InventoriRepository, db *sql.DB) *InventoriHandler {
-	return &InventoriHandler{service: svc, repo: repo, db: db, validate: validator.New()}
+func NewInventoriHandler(svc *services.InventoriService, repo repositories.InventoriRepo, bidanRepo repositories.BidanRepo) *InventoriHandler {
+	return &InventoriHandler{service: svc, repo: repo, bidanRepo: bidanRepo, validate: validator.New()}
 }
 
 func (h *InventoriHandler) GetAllObat(c *gin.Context) {
@@ -99,9 +98,8 @@ func (h *InventoriHandler) GetInventori(c *gin.Context) {
 
 func (h *InventoriHandler) StokMasuk(c *gin.Context) {
 	userID := c.GetInt("user_id")
-	var bidanID int
-	h.db.QueryRowContext(c.Request.Context(), `SELECT id FROM bidan WHERE user_id=?`, userID).Scan(&bidanID)
-	if bidanID == 0 { utils.InternalError(c, "Bidan tidak ditemukan"); return }
+	bidanID, err := h.bidanRepo.FindBidanIDByUserID(c.Request.Context(), userID)
+	if err != nil { utils.InternalError(c, "Bidan tidak ditemukan"); return }
 
 	var req dto.StokMasukRequest
 	if err := c.ShouldBindJSON(&req); err != nil { utils.BadRequest(c, "Data tidak valid"); return }
@@ -115,9 +113,8 @@ func (h *InventoriHandler) StokMasuk(c *gin.Context) {
 
 func (h *InventoriHandler) StokKeluar(c *gin.Context) {
 	userID := c.GetInt("user_id")
-	var bidanID int
-	h.db.QueryRowContext(c.Request.Context(), `SELECT id FROM bidan WHERE user_id=?`, userID).Scan(&bidanID)
-	if bidanID == 0 { utils.InternalError(c, "Bidan tidak ditemukan"); return }
+	bidanID, err := h.bidanRepo.FindBidanIDByUserID(c.Request.Context(), userID)
+	if err != nil { utils.InternalError(c, "Bidan tidak ditemukan"); return }
 
 	var req dto.StokKeluarRequest
 	if err := c.ShouldBindJSON(&req); err != nil { utils.BadRequest(c, "Data tidak valid"); return }

@@ -14,6 +14,7 @@ type JadwalKontrol struct {
 	UpdatedAt        time.Time `json:"updated_at"`
 
 	// Joined fields
-	NamaPasien string `json:"nama_pasien,omitempty"`
-	NoWaPasien string `json:"no_wa_pasien,omitempty"`
+	NamaPasien         string `json:"nama_pasien,omitempty"`
+	NoWaPasien         string `json:"no_wa_pasien,omitempty"`
+	JenisKelaminPasien string `json:"jenis_kelamin_pasien,omitempty"`
 }

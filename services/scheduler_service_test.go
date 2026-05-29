@@ -50,14 +50,15 @@ func TestSchedulerService_RunH1NotificationJob_Success(t *testing.T) {
 	// Patient details
 	catatan := "Kontrol Rutin"
 	jk := &models.JadwalKontrol{
-		ID:               1,
-		PasienID:         10,
-		BidanID:          2,
-		TanggalKontrol:   tomorrow,
-		Catatan:          &catatan,
-		StatusNotifikasi: "belum",
-		NamaPasien:       "Doeng",
-		NoWaPasien:       "081259277769",
+		ID:                 1,
+		PasienID:           10,
+		BidanID:            2,
+		TanggalKontrol:     tomorrow,
+		Catatan:            &catatan,
+		StatusNotifikasi:   "belum",
+		NamaPasien:         "Doeng",
+		NoWaPasien:         "081259277769",
+		JenisKelaminPasien: "laki-laki",
 	}
 	jadwalRepo.Schedules[jk.ID] = jk
 
@@ -74,11 +75,14 @@ func TestSchedulerService_RunH1NotificationJob_Success(t *testing.T) {
 	if msg.Target != "081259277769" {
 		t.Errorf("expected target 081259277769, got %s", msg.Target)
 	}
-	if !strings.Contains(msg.Message, "Doeng") {
-		t.Errorf("expected message to contain patient name Doeng, got: %s", msg.Message)
+	if !strings.Contains(msg.Message, "Bapak Doeng") {
+		t.Errorf("expected message to contain 'Bapak Doeng', got: %s", msg.Message)
 	}
 	if !strings.Contains(msg.Message, "Klinik Indah Care Plus (IC+)") {
 		t.Errorf("expected message to contain clinic name, got: %s", msg.Message)
+	}
+	if !strings.Contains(msg.Message, "https://indah-care.vercel.app/") {
+		t.Errorf("expected message to contain status check link, got: %s", msg.Message)
 	}
 
 	// Verify notification record in DB

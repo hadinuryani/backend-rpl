@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strings"
 	"sync"
 	"time"
 
@@ -149,9 +150,17 @@ func (s *SchedulerService) runH1NotificationJob() {
 
 	for _, jk := range schedules {
 		tanggalStr := formatIndonesianDate(jk.TanggalKontrol)
+		sapaan := "Ibu/Bapak"
+		jkLower := strings.ToLower(jk.JenisKelaminPasien)
+		if jkLower == "laki-laki" || jkLower == "l" {
+			sapaan = "Bapak"
+		} else if jkLower == "perempuan" || jkLower == "p" {
+			sapaan = "Ibu"
+		}
+
 		message := fmt.Sprintf(
-			"Reminder Kontrol 🏥\n\nIbu %s, jangan lupa jadwal kontrol pada:\n\n📅 %s\n⏰ %s\n\nDi %s 😊\nTerima kasih.",
-			jk.NamaPasien, tanggalStr, jamKontrol, namaKlinik,
+			"Reminder Kontrol 🏥\n\n%s %s, jangan lupa jadwal kontrol pada:\n\n📅 %s\n⏰ %s\n\nDi %s 😊\n\nCek status operasional klinik saat ini di: https://indah-care.vercel.app/\n\nTerima kasih.",
+			sapaan, jk.NamaPasien, tanggalStr, jamKontrol, namaKlinik,
 		)
 
 		judul := "Pengingat Jadwal Kontrol"

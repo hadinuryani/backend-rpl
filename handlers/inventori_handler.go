@@ -24,8 +24,10 @@ func NewInventoriHandler(svc *services.InventoriService, repo repositories.Inven
 }
 
 func (h *InventoriHandler) GetAllObat(c *gin.Context) {
+	search := c.Query("search")
+	status := c.Query("status")
 	p := utils.GetPaginationParams(c)
-	list, total, err := h.repo.FindAllObat(c.Request.Context(), p.Limit, p.Offset)
+	list, total, err := h.repo.FindAllObat(c.Request.Context(), search, status, p.Limit, p.Offset)
 	if err != nil { utils.InternalError(c, "Gagal mengambil data"); return }
 	utils.PaginatedResponse(c, "Berhasil", list, utils.BuildMeta(total, p))
 }
@@ -132,3 +134,13 @@ func (h *InventoriHandler) GetRiwayat(c *gin.Context) {
 	if err != nil { utils.InternalError(c, "Gagal mengambil data"); return }
 	utils.PaginatedResponse(c, "Berhasil", list, utils.BuildMeta(total, p))
 }
+
+func (h *InventoriHandler) GetBidanNotifikasi(c *gin.Context) {
+	list, err := h.repo.GetCriticalMedicines(c.Request.Context())
+	if err != nil {
+		utils.InternalError(c, "Gagal mengambil notifikasi")
+		return
+	}
+	utils.SuccessResponse(c, "Berhasil", list)
+}
+

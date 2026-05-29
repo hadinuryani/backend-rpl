@@ -160,3 +160,65 @@ func (r *AntrianRepository) GetDashboardStats(ctx context.Context, dateStr strin
 	).Scan(&total, &waiting, &done)
 	return
 }
+
+func (r *AntrianRepository) GetWeeklyVisitCounts(ctx context.Context, days int) ([]models.WeeklyVisit, error) {
+	loc, _ := time.LoadLocation("Asia/Jakarta")
+	now := time.Now().In(loc)
+
+	// Inisialisasi map untuk N hari terakhir dengan jumlah 0
+	counts := make(map[string]int)
+	order := make([]string, days)
+	for i := 0; i < days; i++ {
+		d := now.AddDate(0, 0, -i)
+		dateStr := d.Format("2006-01-02")
+		counts[dateStr] = 0
+		order[days-1-i] = dateStr // urutan kronologis (terlama ke terbaru)
+	}
+
+	startDate := order[0]
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT tanggal_kunjungan, COUNT(*) as jumlah
+		 FROM antrian
+		 WHERE tanggal_kunjungan >= ?
+		 GROUP BY tanggal_kunjungan`, startDate,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("get weekly visit counts query: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var tgl time.Time
+		var count int
+		if err := rows.Scan(&tgl, &count); err != nil {
+			return nil, fmt.Errorf("scan weekly visit count: %w", err)
+		}
+		dateStr := tgl.Format("2006-01-02")
+		if _, exists := counts[dateStr]; exists {
+			counts[dateStr] = count
+		}
+	}
+
+	hariIndo := map[time.Weekday]string{
+		time.Monday:    "Sen",
+		time.Tuesday:   "Sel",
+		time.Wednesday: "Rab",
+		time.Thursday:  "Kam",
+		time.Friday:    "Jum",
+		time.Saturday:  "Sab",
+		time.Sunday:    "Min",
+	}
+
+	result := make([]models.WeeklyVisit, days)
+	for i, dateStr := range order {
+		t, _ := time.Parse("2006-01-02", dateStr)
+		result[i] = models.WeeklyVisit{
+			Tanggal: dateStr,
+			Hari:    hariIndo[t.Weekday()],
+			Jumlah:  counts[dateStr],
+		}
+	}
+
+	return result, nil
+}
+

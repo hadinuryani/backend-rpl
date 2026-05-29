@@ -58,6 +58,9 @@ func RegisterRoutes(r *gin.Engine,
 
 	// Dashboard
 	bidan.GET("/dashboard", dashH.GetStats)
+	bidan.GET("/dashboard/chart-kunjungan", dashH.GetChartKunjungan)
+	bidan.GET("/dashboard/chart-obat", dashH.GetChartObat)
+	bidan.GET("/dashboard/alerts", dashH.GetAlerts)
 
 	// Antrian
 	bidan.GET("/antrian", antrianH.GetTodayAntrian)
@@ -99,4 +102,5 @@ func RegisterRoutes(r *gin.Engine,
 	bidan.POST("/inventori/stok-masuk", invH.StokMasuk)
 	bidan.POST("/inventori/stok-keluar", invH.StokKeluar)
 	bidan.GET("/inventori/riwayat", invH.GetRiwayat)
+	bidan.GET("/notifikasi", invH.GetBidanNotifikasi)
 }

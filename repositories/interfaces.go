@@ -40,6 +40,7 @@ type AntrianRepo interface {
 	UpdateStatus(ctx context.Context, id int, status string) error
 	UpdateStatusTx(ctx context.Context, tx *sql.Tx, id int, status string) error
 	GetDashboardStats(ctx context.Context, dateStr string) (total, waiting, done int, err error)
+	GetWeeklyVisitCounts(ctx context.Context, days int) ([]models.WeeklyVisit, error)
 }
 
 // RekamMedisRepo defines the contract for medical record data access.
@@ -65,6 +66,7 @@ type JadwalRepo interface {
 	Update(ctx context.Context, id int, tanggal time.Time, catatan *string) error
 	Delete(ctx context.Context, id int) error
 	UpdateNotifStatus(ctx context.Context, id int, status string) error
+	FindTodaySchedules(ctx context.Context, dateStr string) ([]models.JadwalKontrol, error)
 }
 
 // NotifikasiRepo defines the contract for notification data access.
@@ -76,7 +78,7 @@ type NotifikasiRepo interface {
 
 // InventoriRepo defines the contract for inventory data access.
 type InventoriRepo interface {
-	FindAllObat(ctx context.Context, limit, offset int) ([]models.Obat, int, error)
+	FindAllObat(ctx context.Context, search string, status string, limit, offset int) ([]models.Obat, int, error)
 	CreateObatWithInventori(ctx context.Context, nama, kategori, satuan string, stokMin, jumlahStok int, tanggalKadaluarsa *time.Time, batchNumber *string) (*models.Obat, error)
 	UpdateObat(ctx context.Context, id int, nama, kategori, satuan string, stokMin *int, jumlahStok *int, tglKadaluarsa *time.Time) error
 	DeleteObat(ctx context.Context, id int) error
@@ -85,6 +87,8 @@ type InventoriRepo interface {
 	StokKeluar(ctx context.Context, inventoriID, bidanID, jumlah int, keterangan *string) error
 	GetRiwayat(ctx context.Context, limit, offset int) ([]models.RiwayatStok, int, error)
 	CountCritical(ctx context.Context) (int, error)
+	GetCriticalMedicines(ctx context.Context) ([]models.Inventori, error)
+	GetStockStatusSummary(ctx context.Context) (map[string]int, error)
 }
 
 // KlinikRepo defines the contract for clinic status data access.

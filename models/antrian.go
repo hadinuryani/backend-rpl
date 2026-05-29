@@ -36,3 +36,11 @@ type Antrian struct {
 	NoWa          string `json:"no_wa,omitempty"`
 	JenisKelamin  string `json:"jenis_kelamin,omitempty"`
 }
+
+// WeeklyVisit represents visit count for a day.
+type WeeklyVisit struct {
+	Tanggal string `json:"tanggal"`
+	Hari    string `json:"hari"`
+	Jumlah  int    `json:"jumlah"`
+}
+

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 
 	"ic-plus-backend/models"
@@ -81,16 +82,44 @@ func (r *InventoriRepository) CreateObatWithInventori(ctx context.Context, nama,
 	return o, err
 }
 
-func (r *InventoriRepository) FindAllObat(ctx context.Context, limit, offset int) ([]models.Obat, int, error) {
+func (r *InventoriRepository) FindAllObat(ctx context.Context, search string, status string, limit, offset int) ([]models.Obat, int, error) {
 	var total int
-	r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM obat`).Scan(&total)
+	countQ := `SELECT COUNT(*) FROM obat o LEFT JOIN inventori i ON i.obat_id = o.id`
+	var countArgs []interface{}
+	
+	var whereClauses []string
+	if search != "" {
+		whereClauses = append(whereClauses, "o.nama_obat LIKE ?")
+		countArgs = append(countArgs, "%"+search+"%")
+	}
+	if status == "Kritis" {
+		whereClauses = append(whereClauses, "i.status_stok IN ('habis', 'hampir_habis')")
+	} else if status == "Kadaluarsa" {
+		whereClauses = append(whereClauses, "i.status_stok IN ('kadaluarsa', 'hampir_kadaluarsa')")
+	}
+	
+	if len(whereClauses) > 0 {
+		countQ += " WHERE " + strings.Join(whereClauses, " AND ")
+	}
+	r.db.QueryRowContext(ctx, countQ, countArgs...).Scan(&total)
 
-	rows, err := r.db.QueryContext(ctx,
-		`SELECT o.id, o.nama_obat, o.kategori, o.satuan, o.stok_minimum, o.created_at, o.updated_at,
-		        COALESCE(i.jumlah_stok, 0) as jumlah_stok, i.tanggal_kadaluarsa
-		 FROM obat o
-		 LEFT JOIN inventori i ON i.obat_id = o.id
-		 ORDER BY o.nama_obat ASC LIMIT ? OFFSET ?`, limit, offset)
+	query := `SELECT o.id, o.nama_obat, o.kategori, o.satuan, o.stok_minimum, o.created_at, o.updated_at,
+	                 COALESCE(i.jumlah_stok, 0) as jumlah_stok, i.tanggal_kadaluarsa
+	          FROM obat o
+	          LEFT JOIN inventori i ON i.obat_id = o.id`
+	var args []interface{}
+	
+	if search != "" {
+		args = append(args, "%"+search+"%")
+	}
+	
+	if len(whereClauses) > 0 {
+		query += " WHERE " + strings.Join(whereClauses, " AND ")
+	}
+	query += ` ORDER BY o.nama_obat ASC LIMIT ? OFFSET ?`
+	args = append(args, limit, offset)
+
+	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -117,9 +146,28 @@ func (r *InventoriRepository) UpdateObat(ctx context.Context, id int, nama, kate
 	}
 	defer tx.Rollback()
 
+	var currentNama, currentKategori, currentSatuan string
+	err = tx.QueryRowContext(ctx, `SELECT nama_obat, COALESCE(kategori, ''), satuan FROM obat WHERE id = ?`, id).Scan(&currentNama, &currentKategori, &currentSatuan)
+	if err != nil {
+		return err
+	}
+
+	finalNama := nama
+	if finalNama == "" {
+		finalNama = currentNama
+	}
+	finalKategori := kategori
+	if finalKategori == "" {
+		finalKategori = currentKategori
+	}
+	finalSatuan := satuan
+	if finalSatuan == "" {
+		finalSatuan = currentSatuan
+	}
+
 	_, err = tx.ExecContext(ctx,
 		`UPDATE obat SET nama_obat=?, kategori=?, satuan=?, stok_minimum=COALESCE(?, stok_minimum) WHERE id=?`,
-		nama, kategori, satuan, stokMin, id)
+		finalNama, finalKategori, finalSatuan, stokMin, id)
 	if err != nil {
 		return err
 	}
@@ -175,9 +223,39 @@ func (r *InventoriRepository) UpdateObat(ctx context.Context, id int, nama, kate
 }
 
 func (r *InventoriRepository) DeleteObat(ctx context.Context, id int) error {
-	_, err := r.db.ExecContext(ctx, `DELETE FROM obat WHERE id = ?`, id)
-	return err
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	// 1. Get inventori id
+	var invID int
+	err = tx.QueryRowContext(ctx, `SELECT id FROM inventori WHERE obat_id = ?`, id).Scan(&invID)
+	if err == nil {
+		// 2. Delete riwayat_stok referencing this inventory
+		_, err = tx.ExecContext(ctx, `DELETE FROM riwayat_stok WHERE inventori_id = ?`, invID)
+		if err != nil {
+			return err
+		}
+		// 3. Delete inventori referencing the obat
+		_, err = tx.ExecContext(ctx, `DELETE FROM inventori WHERE id = ?`, invID)
+		if err != nil {
+			return err
+		}
+	} else if err != sql.ErrNoRows {
+		return err
+	}
+
+	// 4. Delete the obat
+	_, err = tx.ExecContext(ctx, `DELETE FROM obat WHERE id = ?`, id)
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit()
 }
+
 
 // --- Inventori ---
 
@@ -370,3 +448,68 @@ func calculateStatusStok(jumlahStok, stokMinimum int, tanggalKadaluarsa *time.Ti
 	}
 	return "aman"
 }
+
+func (r *InventoriRepository) GetCriticalMedicines(ctx context.Context) ([]models.Inventori, error) {
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT i.id, i.obat_id, i.jumlah_stok, i.tanggal_kadaluarsa, i.batch_number, i.status_stok, i.updated_at,
+		        o.nama_obat, o.kategori, o.satuan, o.stok_minimum
+		 FROM inventori i
+		 JOIN obat o ON o.id = i.obat_id
+		 WHERE i.status_stok IN ('habis', 'hampir_habis', 'hampir_kadaluarsa', 'kadaluarsa')
+		 ORDER BY CASE i.status_stok
+		 	WHEN 'kadaluarsa' THEN 1
+		 	WHEN 'habis' THEN 2
+		 	WHEN 'hampir_kadaluarsa' THEN 3
+		 	WHEN 'hampir_habis' THEN 4
+		 	ELSE 5
+		 END ASC, o.nama_obat ASC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	list := []models.Inventori{}
+	for rows.Next() {
+		inv := models.Inventori{}
+		var tgl *time.Time
+		err := rows.Scan(&inv.ID, &inv.ObatID, &inv.JumlahStok, &tgl, &inv.BatchNumber, &inv.StatusStok, &inv.UpdatedAt,
+			&inv.NamaObat, &inv.Kategori, &inv.Satuan, &inv.StokMinimum)
+		if err != nil {
+			return nil, err
+		}
+		inv.TanggalKadaluarsa = tgl
+		list = append(list, inv)
+	}
+	return list, nil
+}
+
+func (r *InventoriRepository) GetStockStatusSummary(ctx context.Context) (map[string]int, error) {
+	summary := map[string]int{
+		"aman":              0,
+		"hampir_habis":      0,
+		"habis":             0,
+		"hampir_kadaluarsa": 0,
+		"kadaluarsa":        0,
+	}
+
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT status_stok, COUNT(*) FROM inventori GROUP BY status_stok`,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("get stock status summary query: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var status string
+		var count int
+		if err := rows.Scan(&status, &count); err != nil {
+			return nil, err
+		}
+		summary[status] = count
+	}
+
+	return summary, nil
+}
+
+

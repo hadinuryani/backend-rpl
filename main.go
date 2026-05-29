@@ -79,7 +79,7 @@ func main() {
 	jadwalHandler := handlers.NewJadwalHandler(jadwalService, jadwalRepo, pasienRepo, bidanRepo, pengaturanRepo, scheduler)
 	notifHandler := handlers.NewNotifikasiHandler(notifRepo, pasienRepo)
 	invHandler := handlers.NewInventoriHandler(invService, invRepo, bidanRepo)
-	dashHandler := handlers.NewDashboardHandler(antrianRepo, invRepo, pasienRepo, klinikRepo)
+	dashHandler := handlers.NewDashboardHandler(antrianRepo, invRepo, pasienRepo, klinikRepo, jadwalRepo)
 	monitorHandler := handlers.NewMonitorHandler(monitorRepo)
 
 	// 7. Setup Gin router

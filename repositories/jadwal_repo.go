@@ -181,3 +181,32 @@ func (r *JadwalRepository) UpdateNotifStatus(ctx context.Context, id int, status
 	)
 	return err
 }
+
+func (r *JadwalRepository) FindTodaySchedules(ctx context.Context, dateStr string) ([]models.JadwalKontrol, error) {
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT jk.id, jk.pasien_id, jk.bidan_id, jk.tanggal_kontrol, jk.catatan, jk.status_notifikasi, jk.created_at, jk.updated_at,
+		        p.nama_lengkap
+		 FROM jadwal_kontrol jk
+		 JOIN pasien p ON p.id = jk.pasien_id
+		 WHERE DATE(jk.tanggal_kontrol) = ?
+		 ORDER BY jk.tanggal_kontrol ASC`, dateStr,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	list := []models.JadwalKontrol{}
+	for rows.Next() {
+		jk := models.JadwalKontrol{}
+		var tgl time.Time
+		err := rows.Scan(&jk.ID, &jk.PasienID, &jk.BidanID, &tgl, &jk.Catatan, &jk.StatusNotifikasi, &jk.CreatedAt, &jk.UpdatedAt, &jk.NamaPasien)
+		if err != nil {
+			return nil, err
+		}
+		jk.TanggalKontrol = tgl
+		list = append(list, jk)
+	}
+	return list, nil
+}
+

@@ -137,12 +137,13 @@ func (r *JadwalRepository) FindByPasienID(ctx context.Context, pasienID, limit, 
 }
 
 func (r *JadwalRepository) FindUpcomingForNotification(ctx context.Context, targetDate time.Time) ([]models.JadwalKontrol, error) {
+	dateStr := targetDate.Format("2006-01-02")
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT jk.id, jk.pasien_id, jk.bidan_id, jk.tanggal_kontrol, jk.catatan, jk.status_notifikasi, jk.created_at, jk.updated_at,
 		        p.nama_lengkap, p.no_wa
 		 FROM jadwal_kontrol jk
 		 JOIN pasien p ON p.id = jk.pasien_id
-		 WHERE jk.tanggal_kontrol = ? AND jk.status_notifikasi = 'belum'`, targetDate,
+		 WHERE DATE(jk.tanggal_kontrol) = ? AND jk.status_notifikasi = 'belum'`, dateStr,
 	)
 	if err != nil {
 		return nil, err

@@ -15,4 +15,5 @@ type Pasien struct {
 	CreatedAt      time.Time `json:"created_at"`
 	UpdatedAt      time.Time `json:"updated_at"`
 	Umur           int       `json:"umur"`
+	IsHamil        bool      `json:"is_hamil"`
 }

@@ -49,7 +49,7 @@ func main() {
 
 	// 4. Initialize services
 	antrianService := services.NewAntrianService(antrianRepo, klinikRepo)
-	rmService := services.NewRekamMedisService(rmRepo, antrianRepo, jadwalRepo, db)
+	rmService := services.NewRekamMedisService(rmRepo, antrianRepo, jadwalRepo, pasienRepo, db)
 	jadwalService := services.NewJadwalService(jadwalRepo)
 	notifService := services.NewNotifikasiService(notifRepo)
 	invService := services.NewInventoriService(invRepo)

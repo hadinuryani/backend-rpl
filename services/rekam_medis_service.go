@@ -14,11 +14,12 @@ type RekamMedisService struct {
 	rmRepo      repositories.RekamMedisRepo
 	antrianRepo repositories.AntrianRepo
 	jadwalRepo  repositories.JadwalRepo
+	pasienRepo  repositories.PasienRepo
 	db          *sql.DB
 }
 
-func NewRekamMedisService(rmRepo repositories.RekamMedisRepo, antrianRepo repositories.AntrianRepo, jadwalRepo repositories.JadwalRepo, db *sql.DB) *RekamMedisService {
-	return &RekamMedisService{rmRepo: rmRepo, antrianRepo: antrianRepo, jadwalRepo: jadwalRepo, db: db}
+func NewRekamMedisService(rmRepo repositories.RekamMedisRepo, antrianRepo repositories.AntrianRepo, jadwalRepo repositories.JadwalRepo, pasienRepo repositories.PasienRepo, db *sql.DB) *RekamMedisService {
+	return &RekamMedisService{rmRepo: rmRepo, antrianRepo: antrianRepo, jadwalRepo: jadwalRepo, pasienRepo: pasienRepo, db: db}
 }
 
 // CreateWithResep creates rekam medis + resep + detail_resep + marks antrian as selesai, all in one transaction.
@@ -70,19 +71,30 @@ func (s *RekamMedisService) CreateWithResep(ctx context.Context, bidanID int, re
 		return 0, 0, err
 	}
 
+	// Retrieve antrian and pasien ID if we need to create schedule or update pregnancy status
+	var pasienID int
+	if (req.PerluKontrol && req.TanggalKontrol != "") || req.IsHamil != nil {
+		antrian, err := s.antrianRepo.FindByID(ctx, req.AntrianID)
+		if err != nil || antrian == nil {
+			return 0, 0, fmt.Errorf("antrian tidak ditemukan")
+		}
+		pasienID = antrian.PasienID
+
+		// Update pregnancy status if provided
+		if req.IsHamil != nil {
+			err = s.pasienRepo.UpdateIsHamilTx(ctx, tx, pasienID, *req.IsHamil)
+			if err != nil {
+				return 0, 0, fmt.Errorf("update status kehamilan: %w", err)
+			}
+		}
+	}
+
 	// Auto-create control schedule if requested
 	if req.PerluKontrol && req.TanggalKontrol != "" {
 		tanggalKontrol, err := time.Parse("2006-01-02", req.TanggalKontrol)
 		if err != nil {
 			return 0, 0, fmt.Errorf("format tanggal kontrol tidak valid")
 		}
-		
-		// Get pasien_id from antrian
-		antrian, err := s.antrianRepo.FindByID(ctx, req.AntrianID)
-		if err != nil || antrian == nil {
-			return 0, 0, fmt.Errorf("antrian tidak ditemukan")
-		}
-		pasienID := antrian.PasienID
 
 		var catatanKontrol *string
 		defaultCatatan := "Kontrol Rutin"

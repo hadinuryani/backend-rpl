@@ -70,6 +70,19 @@ func Connect(dsn string) error {
 		}
 	}
 
+	// Add is_hamil column if it does not exist
+	var countHamil int
+	_ = db.QueryRow(`SELECT COUNT(*) FROM information_schema.COLUMNS 
+		WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'pasien' AND COLUMN_NAME = 'is_hamil'`).Scan(&countHamil)
+	if countHamil == 0 {
+		_, err = db.Exec(`ALTER TABLE pasien ADD COLUMN is_hamil TINYINT(1) DEFAULT 0`)
+		if err != nil {
+			log.Printf("Warning: failed to add is_hamil column: %v", err)
+		} else {
+			log.Println("Added is_hamil column to pasien table")
+		}
+	}
+
 	log.Println("Database connected successfully (MySQL)")
 	return nil
 }

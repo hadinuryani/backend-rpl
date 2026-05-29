@@ -28,6 +28,8 @@ type PasienRepo interface {
 	FindByNoWa(ctx context.Context, noWa string) (*models.Pasien, error)
 	Update(ctx context.Context, id int, nama string, tglLahir time.Time, jenisKelamin, alamat, noWa string, golDarah *string) error
 	FindAll(ctx context.Context, search string, limit, offset int) ([]models.Pasien, int, error)
+	UpdateIsHamil(ctx context.Context, id int, isHamil bool) error
+	UpdateIsHamilTx(ctx context.Context, tx *sql.Tx, id int, isHamil bool) error
 }
 
 // AntrianRepo defines the contract for queue data access.

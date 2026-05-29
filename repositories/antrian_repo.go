@@ -70,12 +70,13 @@ func (r *AntrianRepository) FindByID(ctx context.Context, id int) (*models.Antri
 	a := &models.Antrian{}
 	var tgl time.Time
 	var golDarah, alamat, noWa, jenisKelamin sql.NullString
+	var isHamil sql.NullBool
 	err := r.db.QueryRowContext(ctx,
 		`SELECT a.id, a.pasien_id, a.tanggal_kunjungan, a.no_antrian, a.keluhan, a.status, a.created_at, a.updated_at,
-		        p.nama_lengkap, p.golongan_darah, p.alamat, p.no_wa, p.jenis_kelamin, TIMESTAMPDIFF(YEAR, p.tanggal_lahir, CURDATE()) as umur
+		        p.nama_lengkap, p.golongan_darah, p.alamat, p.no_wa, p.jenis_kelamin, TIMESTAMPDIFF(YEAR, p.tanggal_lahir, CURDATE()) as umur, p.is_hamil
 		 FROM antrian a JOIN pasien p ON p.id=a.pasien_id WHERE a.id=?`, id,
 	).Scan(&a.ID, &a.PasienID, &tgl, &a.NoAntrian, &a.Keluhan, &a.Status, &a.CreatedAt, &a.UpdatedAt,
-		&a.NamaPasien, &golDarah, &alamat, &noWa, &jenisKelamin, &a.Umur)
+		&a.NamaPasien, &golDarah, &alamat, &noWa, &jenisKelamin, &a.Umur, &isHamil)
 	
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -95,6 +96,9 @@ func (r *AntrianRepository) FindByID(ctx context.Context, id int) (*models.Antri
 	}
 	if jenisKelamin.Valid {
 		a.JenisKelamin = jenisKelamin.String
+	}
+	if isHamil.Valid {
+		a.IsHamil = isHamil.Bool
 	}
 	return a, nil
 }

@@ -35,6 +35,7 @@ type Antrian struct {
 	Alamat        string `json:"alamat,omitempty"`
 	NoWa          string `json:"no_wa,omitempty"`
 	JenisKelamin  string `json:"jenis_kelamin,omitempty"`
+	IsHamil       bool   `json:"is_hamil,omitempty"`
 }
 
 // WeeklyVisit represents visit count for a day.

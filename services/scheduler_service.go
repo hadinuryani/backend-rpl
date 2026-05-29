@@ -116,7 +116,12 @@ func (s *SchedulerService) Stop() {
 
 func (s *SchedulerService) runH1NotificationJob() {
 	ctx := context.Background()
-	tomorrow := time.Now().AddDate(0, 0, 1).Truncate(24 * time.Hour)
+	loc, _ := time.LoadLocation("Asia/Jakarta")
+	if loc == nil {
+		loc = time.Local
+	}
+	now := time.Now().In(loc)
+	tomorrow := time.Date(now.Year(), now.Month(), now.Day()+1, 0, 0, 0, 0, loc)
 
 	schedules, err := s.jadwalRepo.FindUpcomingForNotification(ctx, tomorrow)
 	if err != nil {
